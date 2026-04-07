@@ -22,6 +22,7 @@
             </nav>
             <div class="sidebar-footer">
                 <div class="status-dot online"></div> Cloud Server: UK-1
+                <p class="version-tag">Agent v1.4 (Memory Edition)</p>
                 <button id="settings-btn" class="btn-sidebar">Connection Settings</button>
             </div>
         </aside>
@@ -118,14 +119,34 @@
     <div id="settings-modal" class="modal">
         <div class="modal-content glass-panel">
             <span class="close-settings-btn">&times;</span>
-            <h2>Pro Connection Settings</h2>
+            <div class="modal-header">
+                <h2>Pro Connection Settings</h2>
+                <p>Configure your Cloud-to-YouTube Bridge</p>
+            </div>
             <div class="modal-body">
                 <div class="setting-card">
-                    <h3>🌉 Cookie Bridge (YouTube URL Mode)</h3>
-                    <p>YouTube sometimes blocks Cloud IPs. Upload a <code>cookies.txt</code> file to "whitelist" your server.</p>
-                    <button id="upload-cookies-btn" class="btn-primary">Upload Cookies File</button>
-                    <input type="file" id="cookies-input" class="hidden" accept=".txt">
-                    <p id="cookie-status" class="helper-text status-good">Local File Mode: Active (No Cookies Required)</p>
+                    <div class="setting-icon">🌉</div>
+                    <div class="setting-info">
+                        <h3>Cookie Bridge (YouTube URL Mode)</h3>
+                        <p>YouTube sometimes blocks Cloud IPs. Use our "Cookie Bridge" to bypass blocks.</p>
+                        
+                        <div class="cookie-guide-mini">
+                            <h4>How to get your cookies:</h4>
+                            <ol>
+                                <li>Open <strong>YouTube.com</strong> in a new tab.</li>
+                                <li>Click the <strong>Get cookies.txt</strong> extension.</li>
+                                <li>Click the first <span class="highlight-btn">Export (download)</span> button.</li>
+                                <li><strong>Important:</strong> Do not open the file! Just upload it below.</li>
+                            </ol>
+                        </div>
+
+                        <div class="upload-zone" id="cookie-drop-zone">
+                            <button id="upload-cookies-btn" class="btn-primary">Upload cookies.txt file</button>
+                            <input type="file" id="cookies-input" class="hidden" accept=".txt">
+                        </div>
+                        
+                        <p id="cookie-status" class="helper-text status-good">Local File Mode: Active (No Cookies Required)</p>
+                    </div>
                 </div>
             </div>
         </div>

@@ -26,9 +26,19 @@ const closeGuideBtn = document.querySelector('.close-guide-btn');
 const navGuide = document.getElementById('nav-guide');
 
 /* --- INITIALIZATION --- */
+window.addEventListener('load', () => {
+    const savedChannel = localStorage.getItem('lastNovaChannel');
+    if (savedChannel) {
+        channelUrlInput.value = savedChannel;
+    }
+});
+
 fetchBtn.addEventListener('click', () => {
     const url = channelUrlInput.value;
-    if (url) fetchChannel(url);
+    if (url) {
+        localStorage.setItem('lastNovaChannel', url);
+        fetchChannel(url);
+    }
 });
 
 navGuide.addEventListener('click', () => guideModal.style.display = 'block');
@@ -77,11 +87,17 @@ async function fetchChannel(url) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url })
         });
+        const result = await response.json();
         
-        currentVideos = await response.json();
+        if (result.error) {
+            videoGrid.innerHTML = `<div class="error-state">❌ ${result.error}</div>`;
+            return;
+        }
+        
+        currentVideos = result;
         renderVideos(currentVideos);
     } catch (err) {
-        videoGrid.innerHTML = '<div class="error-state">Oops! Failed to fetch channel. Make sure the server is running.</div>';
+        videoGrid.innerHTML = '<div class="error-state">Oops! Failed to connect to server. Make sure it is running on your EC2.</div>';
     }
 }
 
@@ -100,7 +116,7 @@ function renderVideos(videos) {
         card.className = 'video-card glass-panel';
         card.innerHTML = `
             <div class="thumb-container">
-                <img src="${video.thumbnail}" alt="Thumbnail">
+                <img src="${video.thumbnail}" alt="Thumbnail" referrerpolicy="no-referrer">
             </div>
             <div class="card-info">
                 <h3>${video.title}</h3>
@@ -120,6 +136,7 @@ function openClippingModal(video) {
     modal.style.display = 'block';
     document.getElementById('modal-title').innerText = `Repurposing: ${video.title}`;
     document.getElementById('modal-thumb').src = video.thumbnail;
+    document.getElementById('modal-thumb').referrerPolicy = "no-referrer";
     
     // Reset modal state
     genStatus.classList.add('hidden');
@@ -213,9 +230,11 @@ async function uploadCookies(file) {
         if (result.success) {
             status.innerText = '✅ ' + result.message;
             status.classList.add('status-good');
+        } else {
+            status.innerText = `❌ ${result.error || 'Failed to activate bridge.'}`;
         }
     } catch (err) {
-        status.innerText = '❌ Failed to activate bridge.';
+        status.innerText = '❌ Failed to connect to server.';
     }
 }
 

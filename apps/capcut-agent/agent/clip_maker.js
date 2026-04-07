@@ -13,14 +13,23 @@ const fs = require('fs');
 const FFMPEG_PATH = process.platform === 'win32' 
     ? path.join(__dirname, '../../node_modules/ffmpeg-static/ffmpeg.exe') 
     : 'ffmpeg';
-const YT_DLP_PATH = 'python -m yt_dlp'; // Using python module for reliability
+const YT_DLP_PATH = 'yt-dlp'; // Using direct binary for EC2 reliability
 
 const OUTPUT_DIR = path.join(__dirname, '../output');
 const TEMP_DIR = path.join(__dirname, '../media/temp');
 const COOKIE_FILE = path.join(__dirname, '../media/cookies.txt');
 
 // Helper to get cookies flag
-const getCookiesFlag = () => fs.existsSync(COOKIE_FILE) ? `--cookies "${COOKIE_FILE}"` : '';
+const getCookiesFlag = () => {
+    // Force absolute path for EC2 reliability
+    const cookiePath = '/home/ubuntu/capcut-agent/media/cookies.txt';
+    if (fs.existsSync(cookiePath)) {
+        console.log(`[AGENT] ✅ Forced Cookie Bridge: ${cookiePath}`);
+        return `--cookies "${cookiePath}"`;
+    }
+    console.log(`[AGENT] ⚠️ No Cookie Bridge found! AWS IP will likely be blocked.`);
+    return '';
+};
 
 // Ensure directories exist
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -32,7 +41,7 @@ if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 async function fetchChannelVideos(channelUrl) {
     console.log(`[AGENT] Fetching videos for: ${channelUrl}`);
     try {
-        const cmd = `${YT_DLP_PATH} ${getCookiesFlag()} --get-title --get-id --get-thumbnail --flat-playlist --max-downloads 10 "${channelUrl}"`;
+        const cmd = `${YT_DLP_PATH} ${getCookiesFlag()} --extractor-args "youtubetab:skip=authcheck" --get-title --get-id --get-thumbnail --flat-playlist --max-downloads 10 "${channelUrl}"`;
         const output = execSync(cmd).toString().split('\n').filter(l => l.trim());
         
         const videos = [];
@@ -48,8 +57,15 @@ async function fetchChannelVideos(channelUrl) {
         }
         return videos;
     } catch (e) {
-        console.error('[AGENT] Error fetching channel:', e.message);
-        return [];
+        console.error('[AGENT] ❌ Fetch Error:', e.message);
+        let errorMsg = e.message;
+        
+        // If we see "Sign in to confirm you are not a bot", the cookies are bad
+        if (e.message.toLowerCase().includes('bot') || e.message.includes('403')) {
+            console.error('[AGENT] 🤖 YouTube flagged us as a bot! Upload fresh cookies.txt.');
+            errorMsg = "YouTube blocked this Cloud IP. Please Refresh/Upload your cookies.txt!";
+        }
+        return { error: errorMsg };
     }
 }
 
