@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova AI Studio | The Future of Content</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #030014;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #00f2fe;
+            --accent-pink: #ff00ea;
+            --text-primary: #fff;
+            --text-secondary: #b4b4b4;
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 242, 254, 0.05), transparent 70%);
+        }
+
+        .studio-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: 5px;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            margin-bottom: 4rem;
+            max-width: 600px;
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2.5rem;
+            width: 100%;
+        }
+
+        .app-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 3rem;
+            text-decoration: none;
+            color: white;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--accent);
+            box-shadow: 0 20px 40px -10px rgba(0, 242, 254, 0.2);
+        }
+
+        .app-card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--accent), #fff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 242, 254, 0.1);
+            color: var(--accent);
+            padding: 5px 12px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid var(--accent);
+        }
+
+        .btn-launch {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.8rem 1.5rem;
+            background: var(--accent);
+            color: black;
+            border-radius: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="studio-container">
+        <div class="logo">NOVA STUDIO</div>
+        <p class="tagline">The ultimate content creation engine powered by agentic intelligence.</p>
+
+        <div class="app-grid">
+            <!-- CapCut Content Agent -->
+            <a href="http://35.178.109.32:3000" class="app-card">
+                <span class="status-badge">CLOUD LIVE</span>
+                <h2>CapCut Repurposer</h2>
+                <p>Turn one video into 10 viral vertical clips automatically.</p>
+                <div class="btn-launch">Launch Agent</div>
+            </a>
+
+            <!-- Other Apps - Placeholders -->
+            <div class="app-card" style="opacity: 0.5;">
+                <span class="status-badge" style="border-color: #666; color: #66/;">COMING SOON</span>
+                <h2>TraceFix AI</h2>
+                <p>AI-driven code analysis and automated debugging studio.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
