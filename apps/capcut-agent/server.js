@@ -31,7 +31,7 @@ app.use('/output', express.static(path.join(__dirname, 'output')));
  * Health Check
  */
 app.get('/api/status', (req, res) => {
-    res.json({ status: 'Online', agent: 'Agentic Content Repurposer v1.4 (Memory Edition)' });
+    res.json({ status: 'Online', agent: 'Agentic Content Repurposer v1.6 (Ultimate IP Edition)' });
 });
 
 /**
@@ -64,8 +64,8 @@ app.post('/api/create-clip', async (req, res) => {
     const result = await createVerticalClip(videoUrl, startTime, clipId);
 
     if (result.success) {
-        // Dynamic download URL for Cloud accessibility
-        const downloadUrl = `http://${req.get('host')}/output/${result.fileName}`;
+        // Absolute Public URL for Cloud reliability
+        const downloadUrl = `http://35.178.109.32:3000/output/${result.fileName}`;
         
         res.json({
             success: true,
