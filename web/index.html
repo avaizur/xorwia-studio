@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nova AI Studio | The Future of Content</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- PayPal JavaScript SDK - REPLACE 'test' with real Client ID -->
+    <script src="https://www.paypal.com/sdk/js?client-id=test&currency=USD"></script>
     <style>
         :root {
             --primary-bg: #030014;
@@ -45,6 +47,7 @@
             margin-bottom: 1rem;
             background: linear-gradient(90deg, var(--accent), var(--accent-pink));
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -86,6 +89,7 @@
             margin-bottom: 1rem;
             background: linear-gradient(45deg, var(--accent), #fff);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -113,6 +117,56 @@
             text-transform: uppercase;
             font-size: 0.9rem;
         }
+
+        /* PayPal Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .modal-content {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 3rem;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h3 {
+            color: var(--accent);
+            font-size: 1.8rem;
+            margin-top: 0;
+        }
+
+        .price-tag {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 1rem 0;
+        }
+
+        #paypal-button-container {
+            margin-top: 2rem;
+            min-height: 150px;
+        }
+
+        .close-btn {
+            background: transparent;
+            color: white;
+            border: none;
+            margin-top: 1rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -122,20 +176,94 @@
 
         <div class="app-grid">
             <!-- CapCut Content Agent -->
-            <a href="http://35.178.109.32:3000" class="app-card">
+            <div class="app-card" onclick="openPaymentModal()" style="cursor: pointer;">
                 <span class="status-badge">CLOUD LIVE</span>
                 <h2>CapCut Repurposer</h2>
                 <p>Turn one video into 10 viral vertical clips automatically.</p>
-                <div class="btn-launch">Launch Agent</div>
-            </a>
+                <div class="btn-launch">Launch Agent ($2.99)</div>
+            </div>
 
-            <!-- Other Apps - Placeholders -->
-            <div class="app-card" style="opacity: 0.5;">
-                <span class="status-badge" style="border-color: #666; color: #66/;">COMING SOON</span>
+            <!-- TraceFix AI Debugger Agent -->
+            <a href="/tracefix.html" class="app-card">
+                <span class="status-badge" style="border-color: #ff00ea; color: #ff00ea;">BETA LIVE</span>
                 <h2>TraceFix AI</h2>
                 <p>AI-driven code analysis and automated debugging studio.</p>
-            </div>
+                <div class="btn-launch" style="background: #ff00ea;">Launch Debugger</div>
+            </a>
         </div>
     </div>
+
+    <!-- PayPal Payment Glassmorphism Modal -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal-content">
+            <h3>Unlock Nova Agent</h3>
+            <p>Get full access to the AI-powered CapCut Repurposer & Bedrock Hook Analysis.</p>
+            <div class="price-tag">$2.99</div>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">One-time generation pass.</p>
+            
+            <div id="paypal-button-container"></div>
+            <button class="close-btn" onclick="closePaymentModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        function openPaymentModal() {
+            document.getElementById('paymentModal').style.display = 'flex';
+            document.getElementById('paypal-button-container').innerHTML = ''; // Prevent duplicates
+            
+            // Render the PayPal button dynamically
+            paypal.Buttons({
+                style: {
+                    layout: 'vertical',
+                    color: 'blue',
+                    shape: 'rect',
+                    label: 'checkout'
+                },
+                createOrder: function(data, actions) {
+                    return actions.order.create({
+                        purchase_units: [{
+                            amount: { value: '2.99' },
+                            description: "Nova CapCut Repurposer Access"
+                        }]
+                    });
+                },
+                onApprove: function(data, actions) {
+                    // Capture the funds from the transaction
+                    return actions.order.capture().then(function(details) {
+                        verifyPaymentWithBackend(details.id);
+                    });
+                }
+            }).render('#paypal-button-container');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+        }
+
+        async function verifyPaymentWithBackend(transactionId) {
+            // Provide immediate UX feedback
+            document.getElementById('paypal-button-container').innerHTML = '<h3 style="color:var(--accent)">Verifying Engine...</h3><p>Connecting to AWS Lambda...</p>';
+
+            try {
+                const res = await fetch('/api/verify-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactionId })
+                });
+
+                const json = await res.json();
+                if (json.success) {
+                    // Unlock the API or Redirect to the Tool View
+                    alert('Agent Unlocked Successfully! Redirecting to Dashboard...');
+                    window.location.href = "/dashboard.html"; 
+                } else {
+                    alert('Backend validation failed. Transaction could not be verified.');
+                }
+            } catch (err) {
+                console.error('API Error:', err);
+                alert('Serverless API is offline or still deploying to AWS.');
+            }
+        }
+    </script>
 </body>
 </html>

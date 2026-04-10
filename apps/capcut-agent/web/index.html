@@ -3,155 +3,267 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CapCut Content Agent | Nova AI Studio</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Nova AI Studio | The Future of Content</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- PayPal JavaScript SDK - REPLACE 'test' with real Client ID -->
+    <script src="https://www.paypal.com/sdk/js?client-id=test&currency=USD"></script>
+    <style>
+        :root {
+            --primary-bg: #030014;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #00f2fe;
+            --accent-pink: #ff00ea;
+            --text-primary: #fff;
+            --text-secondary: #b4b4b4;
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 242, 254, 0.05), transparent 70%);
+        }
+
+        .studio-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: 5px;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            margin-bottom: 4rem;
+            max-width: 600px;
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2.5rem;
+            width: 100%;
+        }
+
+        .app-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 3rem;
+            text-decoration: none;
+            color: white;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--accent);
+            box-shadow: 0 20px 40px -10px rgba(0, 242, 254, 0.2);
+        }
+
+        .app-card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--accent), #fff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 242, 254, 0.1);
+            color: var(--accent);
+            padding: 5px 12px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid var(--accent);
+        }
+
+        .btn-launch {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.8rem 1.5rem;
+            background: var(--accent);
+            color: black;
+            border-radius: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        /* PayPal Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .modal-content {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 3rem;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h3 {
+            color: var(--accent);
+            font-size: 1.8rem;
+            margin-top: 0;
+        }
+
+        .price-tag {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 1rem 0;
+        }
+
+        #paypal-button-container {
+            margin-top: 2rem;
+            min-height: 150px;
+        }
+
+        .close-btn {
+            background: transparent;
+            color: white;
+            border: none;
+            margin-top: 1rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-    <div class="glass-bg"></div>
-    <div class="dashboard-container">
-        <!-- Sidebar / Logo -->
-        <aside class="sidebar">
-            <div class="logo">
-                <span class="gradient-text">NOVA</span> AGENT
+    <div class="studio-container">
+        <div class="logo">NOVA STUDIO</div>
+        <p class="tagline">The ultimate content creation engine powered by agentic intelligence.</p>
+
+        <div class="app-grid">
+            <!-- CapCut Content Agent -->
+            <div class="app-card" onclick="openPaymentModal()" style="cursor: pointer;">
+                <span class="status-badge">CLOUD LIVE</span>
+                <h2>CapCut Repurposer</h2>
+                <p>Turn one video into 10 viral vertical clips automatically.</p>
+                <div class="btn-launch">Launch Agent ($2.99)</div>
             </div>
-            <nav>
-                <div class="nav-item active" id="nav-dashboard">Dashboard</div>
-                <div class="nav-item" id="nav-clips">My Clips</div>
-                <div class="nav-item" id="nav-guide">CapCut Guide</div>
-            </nav>
-            <div class="sidebar-footer">
-                <div class="status-dot online"></div> Cloud Server: UK-1
-                <p class="version-tag">Agent v1.6 (Cloud Link Edition)</p>
-                <button id="settings-btn" class="btn-sidebar">Connection Settings</button>
-            </div>
-        </aside>
 
-        <!-- Main Content -->
-        <main class="content-area">
-            <header>
-                <h1>Welcome to Your <span>Repurposing Agent</span></h1>
-                <p>Turn your YouTube channel into viral clips in seconds.</p>
-            </header>
-
-            <!-- YouTube Channel Search -->
-            <section class="channel-input-card glass-panel">
-                <input type="text" id="channel-url" placeholder="Paste your YouTube Channel or Video URL..." value="https://www.youtube.com/@YouTube">
-                <button id="fetch-btn" class="btn-primary">Scan Channel</button>
-                <div class="divider">OR</div>
-                <button id="upload-btn" class="btn-secondary">Upload Video</button>
-                <input type="file" id="file-input" class="hidden" accept="video/mp4,video/x-m4v,video/*">
-            </section>
-
-            <!-- Video Grid -->
-            <section class="video-grid" id="video-grid">
-                <!-- Videos will appear here -->
-                <div class="loading-state">Enter a channel URL to start discovering your content...</div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Modal for Clipping -->
-    <div id="clip-modal" class="modal">
-        <div class="modal-content glass-panel">
-            <span class="close-btn">&times;</span>
-            <h2 id="modal-title">Generating Vertical Clip</h2>
-            <div class="modal-body">
-                <div class="preview-area" id="preview-area">
-                    <img id="modal-thumb" src="" alt="Thumbnail">
-                    <div class="overlay-play">Previewing Clip...</div>
-                </div>
-                <div class="clipping-controls">
-                    <div id="ai-recommendations" class="ai-hub glass-panel hidden">
-                        <h3>🤖 AI Suggested Hooks</h3>
-                        <p>Our agent scanned the transcript and found these viral moments:</p>
-                        <div id="recommendation-list" class="recommendation-list">
-                            <!-- Recommendations will appear here -->
-                        </div>
-                    </div>
-                    
-                    <label>Select Start Time (Seconds):</label>
-                    <input type="number" id="start-time" value="10" min="0">
-                    <p class="helper-text">Our agent will extract a 5-second vertical clip starting from this point.</p>
-                    <button id="generate-clip-btn" class="btn-action">Create Vertical Clip</button>
-                </div>
-                <div id="generation-status" class="status-msg hidden">Processing clip and cropping to vertical...</div>
-                <div id="download-area" class="download-area hidden">
-                    <h3>✅ Your Clip is Ready for CapCut!</h3>
-                    <p id="generated-caption" class="caption-text"></p>
-                    <div class="action-buttons">
-                        <a id="download-link" href="#" class="btn-download" download>Download Clip</a>
-                        <button class="btn-secondary" onclick="alert('Now drag this clip into CapCut!')">Open CapCut Web</button>
-                    </div>
-                    <p class="capcut-note">💡 Use CapCut's <b>Trending Audio</b> for better reach!</p>
-                </div>
-            </div>
+            <!-- TraceFix AI Debugger Agent -->
+            <a href="/tracefix.html" class="app-card">
+                <span class="status-badge" style="border-color: #ff00ea; color: #ff00ea;">BETA LIVE</span>
+                <h2>TraceFix AI</h2>
+                <p>AI-driven code analysis and automated debugging studio.</p>
+                <div class="btn-launch" style="background: #ff00ea;">Launch Debugger</div>
+            </a>
         </div>
     </div>
 
-    <!-- Modal for CapCut Guide -->
-    <div id="guide-modal" class="modal">
-        <div class="modal-content glass-panel">
-            <span class="close-guide-btn">&times;</span>
-            <h2>🎨 CapCut Pro Guide</h2>
-            <div class="modal-body">
-                <div class="guide-card">
-                    <h3>1. Download the Clip</h3>
-                    <p>Once your 5-second vertical clip is ready, download the .mp4 file.</p>
-                </div>
-                <div class="guide-card">
-                    <h3>2. Drag into CapCut</h3>
-                    <p>Open CapCut (Web or Desktop) and drag the file in. The 9:16 vertical crop is already done for you!</p>
-                </div>
-                <div class="guide-card">
-                    <h3>3. Add Trending Audio</h3>
-                    <p>Click "Add Audio" in CapCut and search for "Trending" or "Viral". This boosts your reach by 10x!</p>
-                </div>
-                <div class="guide-card">
-                    <h3>4. Use AI Captions</h3>
-                    <p>Use our AI-generated caption (provided on the dashboard) in the TikTok/Instagram description.</p>
-                </div>
-            </div>
+    <!-- PayPal Payment Glassmorphism Modal -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal-content">
+            <h3>Unlock Nova Agent</h3>
+            <p>Get full access to the AI-powered CapCut Repurposer & Bedrock Hook Analysis.</p>
+            <div class="price-tag">$2.99</div>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">One-time generation pass.</p>
+            
+            <div id="paypal-button-container"></div>
+            <button class="close-btn" onclick="closePaymentModal()">Cancel</button>
         </div>
     </div>
 
-    <!-- Modal for Settings -->
-    <div id="settings-modal" class="modal">
-        <div class="modal-content glass-panel">
-            <span class="close-settings-btn">&times;</span>
-            <div class="modal-header">
-                <h2>Pro Connection Settings</h2>
-                <p>Configure your Cloud-to-YouTube Bridge</p>
-            </div>
-            <div class="modal-body">
-                <div class="setting-card">
-                    <div class="setting-icon">🌉</div>
-                    <div class="setting-info">
-                        <h3>Cookie Bridge (YouTube URL Mode)</h3>
-                        <p>YouTube sometimes blocks Cloud IPs. Use our "Cookie Bridge" to bypass blocks.</p>
-                        
-                        <div class="cookie-guide-mini">
-                            <h4>How to get your cookies:</h4>
-                            <ol>
-                                <li>Open <strong>YouTube.com</strong> in a new tab.</li>
-                                <li>Click the <strong>Get cookies.txt</strong> extension.</li>
-                                <li>Click the first <span class="highlight-btn">Export (download)</span> button.</li>
-                                <li><strong>Important:</strong> Do not open the file! Just upload it below.</li>
-                            </ol>
-                        </div>
+    <script>
+        function openPaymentModal() {
+            document.getElementById('paymentModal').style.display = 'flex';
+            document.getElementById('paypal-button-container').innerHTML = ''; // Prevent duplicates
+            
+            // Render the PayPal button dynamically
+            paypal.Buttons({
+                style: {
+                    layout: 'vertical',
+                    color: 'blue',
+                    shape: 'rect',
+                    label: 'checkout'
+                },
+                createOrder: function(data, actions) {
+                    return actions.order.create({
+                        purchase_units: [{
+                            amount: { value: '2.99' },
+                            description: "Nova CapCut Repurposer Access"
+                        }]
+                    });
+                },
+                onApprove: function(data, actions) {
+                    // Capture the funds from the transaction
+                    return actions.order.capture().then(function(details) {
+                        verifyPaymentWithBackend(details.id);
+                    });
+                }
+            }).render('#paypal-button-container');
+        }
 
-                        <div class="upload-zone" id="cookie-drop-zone">
-                            <button id="upload-cookies-btn" class="btn-primary">Upload cookies.txt file</button>
-                            <input type="file" id="cookies-input" class="hidden" accept=".txt">
-                        </div>
-                        
-                        <p id="cookie-status" class="helper-text status-good">Local File Mode: Active (No Cookies Required)</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+        }
 
-    <script src="main.js"></script>
+        async function verifyPaymentWithBackend(transactionId) {
+            // Provide immediate UX feedback
+            document.getElementById('paypal-button-container').innerHTML = '<h3 style="color:var(--accent)">Verifying Engine...</h3><p>Connecting to AWS Lambda...</p>';
+
+            try {
+                const res = await fetch('/api/verify-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactionId })
+                });
+
+                const json = await res.json();
+                if (json.success) {
+                    // Unlock the API or Redirect to the Tool View
+                    alert('Agent Unlocked Successfully! Redirecting to Dashboard...');
+                    window.location.href = "/dashboard.html"; 
+                } else {
+                    alert('Backend validation failed. Transaction could not be verified.');
+                }
+            } catch (err) {
+                console.error('API Error:', err);
+                alert('Serverless API is offline or still deploying to AWS.');
+            }
+        }
+    </script>
 </body>
 </html>

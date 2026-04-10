@@ -9,30 +9,18 @@ const fs = require('fs');
  * cropping, and clipping YouTube videos.
  */
 
-// Auto-detect FFmpeg/yt-dlp path based on OS and AWS Lambda environment
-const isLambda = process.env.AWS_EXECUTION_ENV !== undefined || process.env.LAMBDA_TASK_ROOT !== undefined;
-
-const FFMPEG_PATH = isLambda 
-    ? '/usr/local/bin/ffmpeg' 
-    : (process.platform === 'win32' ? path.join(__dirname, '../../node_modules/ffmpeg-static/ffmpeg.exe') : 'ffmpeg');
-
-const YT_DLP_PATH = isLambda ? '/usr/local/bin/yt-dlp' : 'yt-dlp';
+// Auto-detect FFmpeg path based on OS (Windows .exe vs Linux command)
+const FFMPEG_PATH = process.platform === 'win32' 
+    ? path.join(__dirname, '../../node_modules/ffmpeg-static/ffmpeg.exe') 
+    : 'ffmpeg';
+const YT_DLP_PATH = 'python -m yt_dlp'; // Using python module for reliability
 
 const OUTPUT_DIR = path.join(__dirname, '../output');
 const TEMP_DIR = path.join(__dirname, '../media/temp');
 const COOKIE_FILE = path.join(__dirname, '../media/cookies.txt');
 
 // Helper to get cookies flag
-const getCookiesFlag = () => {
-    // Use relative path or match the deployment path in Deploy-To-EC2.ps1
-    const cookiePath = path.join(__dirname, '../media/cookies.txt');
-    if (fs.existsSync(cookiePath)) {
-        console.log(`[AGENT] ✅ Forced Cookie Bridge: ${cookiePath}`);
-        return `--cookies "${cookiePath}"`;
-    }
-    console.log(`[AGENT] ⚠️ No Cookie Bridge found! AWS IP will likely be blocked.`);
-    return '';
-};
+const getCookiesFlag = () => fs.existsSync(COOKIE_FILE) ? `--cookies "${COOKIE_FILE}"` : '';
 
 // Ensure directories exist
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -44,35 +32,24 @@ if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 async function fetchChannelVideos(channelUrl) {
     console.log(`[AGENT] Fetching videos for: ${channelUrl}`);
     try {
-        const cookiePath = path.join(__dirname, '../media/cookies.txt');
-        const cmd = `${YT_DLP_PATH} --cookies "${cookiePath}" --extractor-args "youtubetab:skip=authcheck" --print "%(title)s ### %(id)s ### %(thumbnail)s" --flat-playlist --max-downloads 10 "${channelUrl}"`;
-    
-        const stdout = execSync(cmd).toString();
-        const lines = stdout.trim().split('\n');
-        const videos = [];
+        const cmd = `${YT_DLP_PATH} ${getCookiesFlag()} --get-title --get-id --get-thumbnail --flat-playlist --max-downloads 10 "${channelUrl}"`;
+        const output = execSync(cmd).toString().split('\n').filter(l => l.trim());
         
-        for (let line of lines) {
-            const parts = line.split(' ### ');
-            if (parts.length >= 3) {
+        const videos = [];
+        for (let i = 0; i < output.length; i += 3) {
+            if (output[i]) {
                 videos.push({
-                    title: parts[0],
-                    id: parts[1],
-                    thumbnail: parts[2],
-                    url: `https://www.youtube.com/watch?v=${parts[1]}`
+                    title: output[i],
+                    id: output[i+1],
+                    thumbnail: output[i+2],
+                    url: `https://www.youtube.com/watch?v=${output[i+1]}`
                 });
             }
         }
         return videos;
-    } catch (err) {
-        console.error('[AGENT] ❌ Fetch Error:', err.message);
-        let errorMsg = err.message;
-        
-        // If we see "Sign in to confirm you are not a bot", the cookies are bad
-        if (err.message.toLowerCase().includes('bot') || err.message.includes('403')) {
-            console.error('[AGENT] 🤖 YouTube flagged us as a bot! Upload fresh cookies.txt.');
-            errorMsg = "YouTube blocked this Cloud IP. Please Refresh/Upload your cookies.txt!";
-        }
-        return { error: errorMsg };
+    } catch (e) {
+        console.error('[AGENT] Error fetching channel:', e.message);
+        return [];
     }
 }
 
@@ -90,8 +67,7 @@ async function createVerticalClip(videoUrl, startTime, clipId) {
     try {
         // 1. Download segment UNLESS it is already local
         if (!isLocal) {
-            const formatStr = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
-            const downloadCmd = `${YT_DLP_PATH} ${getCookiesFlag()} -f "${formatStr}" --external-downloader "${FFMPEG_PATH}" --external-downloader-args "ffmpeg_i:-ss ${startTime} -t 5" -o "${rawFile}" "${videoUrl}"`;
+            const downloadCmd = `${YT_DLP_PATH} ${getCookiesFlag()} -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --external-downloader "${FFMPEG_PATH}" --external-downloader-args "ffmpeg_i:-ss ${startTime} -t 5" -o "${rawFile}" "${videoUrl}"`;
             execSync(downloadCmd);
         }
 
