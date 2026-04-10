@@ -179,6 +179,17 @@
             </p>
             <textarea id="codeInput" placeholder="function mystery() {\n  return x + 1;\n}"></textarea>
             <button class="btn-debug" id="debugBtn" onclick="runDebugger()">Analyze & Fix</button>
+            
+            <!-- Usage Guide -->
+            <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(0, 242, 254, 0.05); border-radius: 12px; border: 1px solid rgba(0, 242, 254, 0.1);">
+                <h4 style="color: var(--secondary); margin-bottom: 0.8rem; font-size: 0.9rem; text-transform: uppercase;">🚀 How to Use</h4>
+                <ol style="color: var(--text-secondary); font-size: 0.85rem; padding-left: 1.2rem;">
+                    <li style="margin-bottom: 0.5rem;">Paste any code snippet that is throwing errors or acting unexpectedly.</li>
+                    <li style="margin-bottom: 0.5rem;">Click <strong>Analyze & Fix</strong> to send it to the TraceFix AI engine.</li>
+                    <li style="margin-bottom: 0.5rem;">Review the identified issue and the AI-generated solution on the right.</li>
+                </ol>
+            </div>
+            
             <div class="loader" id="loader"></div>
         </div>
 
