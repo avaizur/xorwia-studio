@@ -7,7 +7,7 @@ const serverless = require('serverless-http');
 const axios = require('axios');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { fetchChannelVideos, createVerticalClip, fetchVideoTranscript } = require('./agent/clip_maker');
-const { uploadToS3AndGetUrl, analyzeTranscriptWithBedrock, debugCodeWithBedrock } = require('./agent/aws_services');
+const { uploadToS3AndGetUrl, analyzeTranscriptWithBedrock, debugCodeWithBedrock, enhanceTranscriptWithBedrock } = require('./agent/aws_services');
 
 const app = express();
 const PORT = 3000;
@@ -60,8 +60,10 @@ app.get('/api/status', (req, res) => {
     res.json({ 
         status: 'Online', 
         environment: DEPLOY_ENV,
-        version: '1.6.0',
-        agent: 'Agentic Content Repurposer (Multi-Payment Edition)' 
+        version: '2.0.0',
+        platform: 'Xorwia Studio',
+        tools: ['CapCut Repurposer', 'Lectura', 'TraceFix AI'],
+        agent: 'Xorwia Studio v2.0 (Multi-Tool + Multi-Payment Edition)' 
     });
 });
 
@@ -91,7 +93,8 @@ app.post('/api/fetch-channel', async (req, res) => {
  */
 app.post('/api/create-clip', async (req, res) => {
     const { videoUrl, startTime, id } = req.body;
-    if (!videoUrl || !startTime) return res.status(400).json({ error: 'Missing parameters' });
+    if (!videoUrl || startTime === undefined || startTime === null)
+    return res.status(400).json({ error: 'Missing parameters' });
 
     const clipId = id || Date.now();
     console.log(`[SERVER] Creating vertical clip for: ${videoUrl} at ${startTime}s`);
@@ -152,6 +155,24 @@ app.post('/api/tracefix/debug', async (req, res) => {
 });
 
 /**
+ * Lectura: AI-Enhanced Transcript Notes
+ */
+app.post('/api/lectura/enhance', async (req, res) => {
+    const { transcript, lang } = req.body;
+    if (!transcript) return res.status(400).json({ error: 'No transcript provided' });
+
+    console.log(`[SERVER] Lectura enhancing transcript (${transcript.length} chars, lang: ${lang || 'en-GB'})`);
+    
+    try {
+        const enhanced = await enhanceTranscriptWithBedrock(transcript, lang);
+        res.json({ success: true, enhanced });
+    } catch (err) {
+        console.error('[LECTURA] Enhancement error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
  * Upload Video API
  */
 app.post('/api/upload-video', upload.single('video'), (req, res) => {
@@ -189,27 +210,34 @@ app.post('/api/upload-cookies', upload.single('cookies'), (req, res) => {
 });
 
 /**
- * Stripe Checkout Session Creation
+ * Stripe Checkout Session Creation (Dynamic — supports multiple products)
  */
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
+        const { productName, amount, successUrl } = req.body;
         const protocol = req.protocol;
         const host = req.get('host');
+
+        // Dynamic product pricing
+        const finalAmount = amount || 299; // Default £2.99
+        const finalProductName = productName || 'Xorwia Studio - Agent Access';
+        const finalSuccessPath = successUrl || '/success.html';
+
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: [{
                 price_data: {
                     currency: 'gbp',
                     product_data: {
-                        name: 'Xorwia Studio - Agent Access',
-                        description: 'Full access to the professional content repurposing engine.',
+                        name: finalProductName,
+                        description: `Full access via Xorwia Studio.`,
                     },
-                    unit_amount: 299, 
+                    unit_amount: finalAmount, 
                 },
                 quantity: 1,
             }],
             mode: 'payment',
-            success_url: `${protocol}://${host}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+            success_url: `${protocol}://${host}${finalSuccessPath}?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${protocol}://${host}/index.html`,
         });
         res.json({ id: session.id, url: session.url });
@@ -248,13 +276,14 @@ app.post('/api/verify-payment', async (req, res) => {
         });
 
         const status = orderRes.data.status;
-        const amount = orderRes.data.purchase_units[0].amount.value;
+        const paymentAmount = orderRes.data.purchase_units[0].amount.value;
 
-        if (status === 'COMPLETED' && parseFloat(amount) >= 2.99) {
-            console.log(`[PAYPAL] ✅ Payment Validated for ID: ${transactionId}`);
+        // Accept any valid completed payment (supports multiple products at different prices)
+        if (status === 'COMPLETED' && parseFloat(paymentAmount) >= 1.99) {
+            console.log(`[PAYPAL] ✅ Payment Validated for ID: ${transactionId} — Amount: £${paymentAmount}`);
             return res.json({ success: true, message: 'Payment authenticated!' });
         } else {
-            console.warn(`[PAYPAL] ❌ Validation Failure: Status ${status}, Amount ${amount}`);
+            console.warn(`[PAYPAL] ❌ Validation Failure: Status ${status}, Amount ${paymentAmount}`);
             return res.status(401).json({ success: false, error: 'Transaction not completed or invalid amount' });
         }
     } catch (err) {
@@ -264,7 +293,7 @@ app.post('/api/verify-payment', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`[SERVER] Dashboard running at http://localhost:${PORT}`);
+    console.log(`[SERVER] Xorwia Studio v2.0 running at http://localhost:${PORT}`);
 });
 
 // AWS Lambda Serverless Export

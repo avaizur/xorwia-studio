@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lectura | Live Transcription Engine — Xorwia Studio</title>
+    <meta name="description" content="Lectura by Xorwia Studio — Real-time speech-to-text transcription with AI-powered note enhancement. Export to PDF, DOCX, or TXT.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #030014;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #f5a623;
+            --accent-secondary: #00f2fe;
+            --text-primary: #fff;
+            --text-secondary: #b4b4b4;
+            --success: #10b981;
+            --transition: all 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 30% 20%, rgba(245, 166, 35, 0.06), transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(0, 242, 254, 0.04), transparent 50%),
+                var(--primary-bg);
+        }
+
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
+        .navbar {
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(3, 0, 20, 0.85);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .back-link:hover { border-color: var(--accent); color: var(--accent); }
+
+        .logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--accent), #ffd93d);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .status-dot {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .status-dot::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 3rem auto;
+            padding: 0 2rem;
+        }
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .hero-section h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(135deg, var(--accent), #ffd93d, var(--accent-secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-section p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .panel-header h2 {
+            font-size: 1.3rem;
+            color: var(--accent);
+        }
+
+        .lang-select {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-primary);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .transcript-area {
+            width: 100%;
+            min-height: 350px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            padding: 1.5rem;
+            font-size: 1rem;
+            line-height: 1.8;
+            resize: none;
+            outline: none;
+            transition: var(--transition);
+            flex-grow: 1;
+        }
+
+        .transcript-area:focus { border-color: var(--accent); }
+
+        .transcript-area.live {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.9rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        .btn-record {
+            background: linear-gradient(135deg, var(--accent), #ffd93d);
+            color: #030014;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff;
+        }
+
+        .btn-enhance {
+            background: linear-gradient(135deg, var(--accent-secondary), #38bdf8);
+            color: #030014;
+        }
+
+        .output-panel h2 { color: var(--accent-secondary); }
+
+        .enhanced-text {
+            min-height: 200px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            color: #e0e0e0;
+            line-height: 1.8;
+            font-size: 0.95rem;
+            white-space: pre-wrap;
+            flex-grow: 1;
+        }
+
+        .export-bar {
+            display: flex;
+            gap: 0.8rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-export {
+            flex: 1;
+            padding: 0.8rem;
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-export:hover {
+            background: rgba(245, 166, 35, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .word-count {
+            text-align: right;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.8rem;
+        }
+
+        .loader {
+            display: none;
+            margin: 1rem auto;
+            width: 35px;
+            height: 35px;
+            border: 3px solid rgba(245, 166, 35, 0.1);
+            border-left-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .visualizer {
+            height: 60px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            margin-top: 1rem;
+        }
+
+        .visualizer .bar {
+            width: 4px;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: height 0.1s ease;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-left">
+            <a href="/" class="back-link">← Studio</a>
+            <a href="/lectura.html" class="logo">LECTURA</a>
+        </div>
+        <div class="status-dot" id="statusIndicator">Ready</div>
+    </nav>
+
+    <div class="container">
+        <div class="hero-section">
+            <h1>Live Transcription Engine</h1>
+            <p>Speak naturally. Lectura captures every word in real-time, then enhances your notes with AI.</p>
+        </div>
+
+        <div class="main-grid">
+            <!-- Input Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>📝 Live Transcript</h2>
+                    <select class="lang-select" id="langSelect">
+                        <option value="en-GB">🇬🇧 English (UK)</option>
+                        <option value="en-US">🇺🇸 English (US)</option>
+                        <option value="es-ES">🇪🇸 Spanish</option>
+                        <option value="fr-FR">🇫🇷 French</option>
+                        <option value="de-DE">🇩🇪 German</option>
+                        <option value="ar-SA">🇸🇦 Arabic</option>
+                    </select>
+                </div>
+
+                <textarea class="transcript-area" id="transcriptArea" placeholder="Your transcription will appear here in real-time...
+
+Click 'Start Listening' and begin speaking. Lectura will capture everything."></textarea>
+
+                <div class="visualizer" id="visualizer" style="display: none;">
+                    <!-- Bars injected by JS -->
+                </div>
+
+                <div class="word-count" id="wordCount">0 words</div>
+
+                <div class="controls">
+                    <button class="btn btn-record" id="recordBtn" onclick="toggleRecording()">
+                        🎙️ Start Listening
+                    </button>
+                    <button class="btn btn-enhance" id="enhanceBtn" onclick="enhanceNotes()" disabled>
+                        🧠 AI Enhance
+                    </button>
+                </div>
+            </div>
+
+            <!-- Output Panel -->
+            <div class="panel output-panel">
+                <div class="panel-header">
+                    <h2>✨ AI-Enhanced Notes</h2>
+                </div>
+
+                <div class="enhanced-text" id="enhancedOutput">AI-enhanced notes will appear here after transcription...
+
+The Bedrock AI engine will:
+  • Clean up grammar and structure
+  • Add headings and bullet points
+  • Highlight key topics
+  • Format for professional use</div>
+
+                <div class="loader" id="enhanceLoader"></div>
+
+                <div class="export-bar">
+                    <button class="btn-export" onclick="exportAs('txt')" id="export-txt">📄 TXT</button>
+                    <button class="btn-export" onclick="exportAs('pdf')" id="export-pdf">📕 PDF</button>
+                    <button class="btn-export" onclick="exportAs('docx')" id="export-docx">📘 DOCX</button>
+                    <button class="btn-export" onclick="exportAs('copy')" id="export-copy">📋 Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRecording = false;
+        let recognition = null;
+        let fullTranscript = '';
+
+        // Setup visualizer bars
+        const visualizer = document.getElementById('visualizer');
+        for (let i = 0; i < 32; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            bar.style.height = '4px';
+            visualizer.appendChild(bar);
+        }
+
+        // Check for browser support
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            document.getElementById('recordBtn').disabled = true;
+            document.getElementById('recordBtn').textContent = '⚠️ Browser Not Supported';
+        }
+
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            recognition = new SpeechRecognition();
+            recognition.lang = document.getElementById('langSelect').value;
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            const textArea = document.getElementById('transcriptArea');
+            const btn = document.getElementById('recordBtn');
+            const status = document.getElementById('statusIndicator');
+
+            recognition.onstart = () => {
+                isRecording = true;
+                btn.innerHTML = '⏹️ Stop Listening';
+                btn.className = 'btn btn-stop';
+                textArea.classList.add('live');
+                status.textContent = '🔴 Recording...';
+                status.style.color = '#ef4444';
+                visualizer.style.display = 'flex';
+                animateVisualizer();
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        fullTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                textArea.value = fullTranscript + interimTranscript;
+                textArea.scrollTop = textArea.scrollHeight;
+                updateWordCount();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Recognition error:', event.error);
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access was denied. Please allow microphone access in your browser settings.');
+                }
+                stopRecording();
+            };
+
+            recognition.onend = () => {
+                if (isRecording) {
+                    recognition.start(); // Auto-restart for continuous recording
+                }
+            };
+
+            recognition.start();
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
+
+            const btn = document.getElementById('recordBtn');
+            const status = document.getElementById('statusIndicator');
+            const textArea = document.getElementById('transcriptArea');
+
+            btn.innerHTML = '🎙️ Start Listening';
+            btn.className = 'btn btn-record';
+            textArea.classList.remove('live');
+            status.textContent = 'Ready';
+            status.style.color = '#10b981';
+            visualizer.style.display = 'none';
+
+            // Enable AI enhance if we have content
+            if (fullTranscript.trim().length > 10) {
+                document.getElementById('enhanceBtn').disabled = false;
+            }
+        }
+
+        function animateVisualizer() {
+            if (!isRecording) return;
+            const bars = visualizer.querySelectorAll('.bar');
+            bars.forEach(bar => {
+                const height = Math.random() * 50 + 4;
+                bar.style.height = height + 'px';
+            });
+            requestAnimationFrame(() => setTimeout(animateVisualizer, 80));
+        }
+
+        function updateWordCount() {
+            const text = document.getElementById('transcriptArea').value.trim();
+            const count = text ? text.split(/\s+/).length : 0;
+            document.getElementById('wordCount').textContent = count + ' words';
+        }
+
+        async function enhanceNotes() {
+            const transcript = document.getElementById('transcriptArea').value.trim();
+            if (!transcript || transcript.length < 10) {
+                alert('Please record some audio first!');
+                return;
+            }
+
+            const loader = document.getElementById('enhanceLoader');
+            const output = document.getElementById('enhancedOutput');
+            const btn = document.getElementById('enhanceBtn');
+
+            btn.disabled = true;
+            btn.textContent = '🧠 Processing...';
+            loader.style.display = 'block';
+
+            try {
+                const res = await fetch('/api/lectura/enhance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transcript, lang: document.getElementById('langSelect').value })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    output.textContent = data.enhanced;
+                } else {
+                    output.textContent = '⚠️ Enhancement failed: ' + (data.error || 'Unknown error');
+                }
+            } catch (err) {
+                console.error('Enhance error:', err);
+                output.textContent = '⚠️ Connection error. Please try again.';
+            } finally {
+                loader.style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = '🧠 AI Enhance';
+            }
+        }
+
+        function exportAs(format) {
+            const text = document.getElementById('enhancedOutput').textContent;
+            if (!text || text.includes('AI-enhanced notes will appear')) {
+                alert('No enhanced notes to export. Please transcribe and enhance first.');
+                return;
+            }
+
+            if (format === 'copy') {
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = document.getElementById('export-copy');
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => btn.textContent = '📋 Copy', 2000);
+                });
+                return;
+            }
+
+            if (format === 'txt') {
+                downloadFile(text, 'lectura-notes.txt', 'text/plain');
+            } else if (format === 'pdf' || format === 'docx') {
+                // For now, export as TXT with the appropriate label
+                // Full PDF/DOCX generation would require server-side processing
+                downloadFile(text, `lectura-notes.${format === 'pdf' ? 'txt' : 'txt'}`, 'text/plain');
+                alert(`Note: Full ${format.toUpperCase()} export is available in the Lectura mobile app. A TXT version has been downloaded.`);
+            }
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Allow manual text input to update word count
+        document.getElementById('transcriptArea').addEventListener('input', updateWordCount);
+    </script>
+</body>
+</html>

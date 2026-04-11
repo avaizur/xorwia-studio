@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TraceFix AI | The Agentic Debugger</title>
+    <title>TraceFix AI | The Agentic Debugger — Xorwia Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -17,27 +17,45 @@
             --code-bg: #0d0d1a;
         }
 
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             background-color: var(--primary-bg);
             color: var(--text-primary);
             font-family: 'Outfit', sans-serif;
-            margin: 0;
-            padding: 0;
             min-height: 100vh;
         }
 
         .navbar {
-            padding: 1.5rem 3rem;
+            padding: 1.2rem 2rem;
             border-bottom: 1px solid var(--glass-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(3, 0, 20, 0.8);
+            background: rgba(3, 0, 20, 0.85);
             backdrop-filter: blur(20px);
         }
 
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover { border-color: var(--accent); color: var(--accent); }
+
         .logo {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             font-weight: 800;
             background: linear-gradient(90deg, var(--accent), var(--secondary));
             -webkit-background-clip: text;
@@ -48,11 +66,15 @@
 
         .container {
             max-width: 1200px;
-            margin: 4rem auto;
+            margin: 3rem auto;
             padding: 0 2rem;
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
         }
 
         .panel {
@@ -64,7 +86,7 @@
             flex-direction: column;
         }
 
-        h2 { color: var(--secondary); margin-top: 0; font-size: 1.5rem; }
+        h2 { color: var(--secondary); margin-top: 0; font-size: 1.4rem; }
 
         textarea {
             width: 100%;
@@ -95,21 +117,19 @@
             margin-top: 1.5rem;
             text-transform: uppercase;
             width: 100%;
+            transition: all 0.3s ease;
         }
 
-        .btn-debug:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-debug:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255, 0, 234, 0.3); }
+        .btn-debug:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        .output-panel {
-            display: none;
-            animation: fadeIn 0.5s ease;
-        }
-
+        .output-panel { display: none; animation: fadeIn 0.5s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .issue-card {
-            background: rgba(255, 0, 234, 0.1);
+            background: rgba(255, 0, 234, 0.08);
             border-left: 4px solid var(--accent);
-            padding: 1rem;
+            padding: 1.2rem;
             border-radius: 8px;
             margin-bottom: 1.5rem;
         }
@@ -118,8 +138,7 @@
             background: var(--code-bg);
             border: 1px solid var(--glass-border);
             border-radius: 12px;
-            padding: 1rem;
-            position: relative;
+            padding: 1.2rem;
         }
 
         pre {
@@ -128,13 +147,14 @@
             white-space: pre-wrap;
             color: #00ff88;
             font-size: 0.9rem;
+            line-height: 1.6;
         }
 
         .explanation {
             margin-top: 1.5rem;
             color: var(--text-secondary);
             font-size: 0.9rem;
-            line-height: 1.6;
+            line-height: 1.7;
         }
 
         .loader {
@@ -154,8 +174,11 @@
 <body>
 
     <nav class="navbar">
-        <a href="/" class="logo">TRACEFIX AI</a>
-        <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">AGENTIC DEBUGGER v2.0</div>
+        <div class="nav-left">
+            <a href="/" class="back-link">← Studio</a>
+            <a href="/tracefix.html" class="logo">TRACEFIX AI</a>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">AGENTIC DEBUGGER v2.0</div>
     </nav>
 
     <div class="container">
@@ -163,9 +186,11 @@
         <div class="panel">
             <h2>Paste Broken Code</h2>
             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
-                Drop your buggy JavaScript, Python, or HTML here. Nova's AI brain will find the fix.
+                Drop your buggy JavaScript, Python, or HTML here. Xorwia's AI engine will find the fix.
             </p>
-            <textarea id="codeInput" placeholder="function mystery() {\n  return x + 1;\n}"></textarea>
+            <textarea id="codeInput" placeholder="function mystery() {
+  return x + 1;
+}"></textarea>
             <button class="btn-debug" id="debugBtn" onclick="runDebugger()">Analyze & Fix</button>
             <div class="loader" id="loader"></div>
         </div>
@@ -179,7 +204,7 @@
                     <div id="issueText" style="margin-top: 0.5rem;"></div>
                 </div>
 
-                <h3>Fixed Solution:</h3>
+                <h3 style="margin-bottom: 0.8rem;">Fixed Solution:</h3>
                 <div class="fixed-code-container">
                     <pre id="fixedCode"></pre>
                 </div>
@@ -201,7 +226,6 @@
             const loader = document.getElementById('loader');
             const outputPanel = document.getElementById('outputPanel');
 
-            // UI State
             btn.disabled = true;
             btn.innerText = "Processing Logic...";
             loader.style.display = 'block';

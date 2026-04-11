@@ -43,7 +43,7 @@ async function uploadToS3AndGetUrl(filePath, fileName) {
 }
 
 /**
- * Uses Amazon Bedrock to analyze a video transcript.
+ * Uses Amazon Bedrock to analyze a video transcript for viral hooks.
  */
 async function analyzeTranscriptWithBedrock(transcriptText) {
     console.log(`[AWS] Analyzing transcript with Bedrock...`);
@@ -85,14 +85,13 @@ Format your response as a JSON array of objects with: "time"(int), "reason", "ta
         return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
     } catch (error) {
         console.error('[AWS Bedrock Error]', error);
-        // Show specific AWS error if possible
         const errorMsg = error.message || error.toString();
         return [{ time: 0, reason: `AWS Error: ${errorMsg}`, tag: "System" }];
     }
 }
 
 /**
- * NEW: Uses Amazon Bedrock to analyze code and suggest a fix.
+ * Uses Amazon Bedrock to analyze code and suggest a fix.
  */
 async function debugCodeWithBedrock(errorCode) {
     console.log(`[AWS TraceFix] Debugging code with Bedrock...`);
@@ -112,7 +111,7 @@ Return ONLY valid JSON.`;
         const payload = {
             anthropic_version: "bedrock-2023-05-31",
             max_tokens: 2000,
-            temperature: 0.2, // Consistent results for code
+            temperature: 0.2,
             messages: [{ role: "user", content: prompt }]
         };
 
@@ -147,8 +146,63 @@ Return ONLY valid JSON.`;
     }
 }
 
+/**
+ * NEW (v2.0): Uses Amazon Bedrock to enhance a Lectura transcript into structured notes.
+ */
+async function enhanceTranscriptWithBedrock(transcriptText, lang) {
+    console.log(`[AWS Lectura] Enhancing transcript (${transcriptText.length} chars)...`);
+
+    const langNote = lang && !lang.startsWith('en') ? `The transcript is in language code: ${lang}. Keep the output in the same language.` : '';
+
+    const prompt = `You are an expert note-taker and academic editor. ${langNote}
+    
+A student or professional recorded this transcript using live speech-to-text.
+Your job is to clean it up and turn it into structured, professional notes.
+
+Transcript:
+${transcriptText}
+
+Instructions:
+- Fix grammar, punctuation, and sentence structure
+- Add clear headings (##) for major topic shifts
+- Use bullet points for key concepts
+- Highlight action items or important terms in CAPS
+- Keep all factual content — do not add information that wasn't said
+- Format for readability, as if preparing for revision or a report
+
+Return the enhanced notes as plain text (no markdown code blocks).`;
+
+    try {
+        const payload = {
+            anthropic_version: "bedrock-2023-05-31",
+            max_tokens: 3000,
+            temperature: 0.3,
+            messages: [{ role: "user", content: prompt }]
+        };
+
+        const command = new InvokeModelCommand({
+            modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+            contentType: "application/json",
+            accept: "application/json",
+            body: JSON.stringify(payload)
+        });
+
+        const response = await bedrockClient.send(command);
+        const decodedResponse = new TextDecoder().decode(response.body);
+        const jsonResponse = JSON.parse(decodedResponse);
+        const enhanced = jsonResponse.content[0].text;
+
+        console.log(`[AWS Lectura] ✅ Enhancement complete (${enhanced.length} chars)`);
+        return enhanced;
+    } catch (error) {
+        console.error('[AWS Lectura Bedrock Error]', error);
+        throw new Error(`Bedrock enhancement failed: ${error.message || 'Unknown error'}`);
+    }
+}
+
 module.exports = {
     uploadToS3AndGetUrl,
     analyzeTranscriptWithBedrock,
-    debugCodeWithBedrock
+    debugCodeWithBedrock,
+    enhanceTranscriptWithBedrock
 };
