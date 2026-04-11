@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XORWIA STUDIO | The Future of Content & Intelligence (STAGING)</title>
+    <title>XORWIA STUDIO | The Future of Content & Intelligence</title>
+    <script>
+        // Dynamic environment detection for the browser
+        if (window.location.hostname.includes('blue')) {
+            document.title += ' (STAGING)';
+        }
+    </script>
     <meta name="description" content="Xorwia Studio — AI-powered content creation engine. CapCut Repurposer, Lectura live transcription, and TraceFix AI debugger.">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     
