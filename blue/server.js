@@ -15,7 +15,7 @@ const PORT = 3000;
 // Detect if running on AWS Lambda
 const IS_LAMBDA = !!process.env.LAMBDA_TASK_ROOT;
 const STORAGE_BASE = IS_LAMBDA ? '/tmp' : __dirname;
-const DEPLOY_ENV = process.env.DEPLOY_ENV || 'blue'; // Staging branch default
+const DEPLOY_ENV = process.env.DEPLOY_ENV || 'blue'; // Changed from 'green' for staging area
 
 const mediaDir = path.join(STORAGE_BASE, 'media');
 const outputDir = path.join(STORAGE_BASE, 'output');
