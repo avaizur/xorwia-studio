@@ -413,3 +413,25 @@ input[type="text"]:focus {
 .rec-time { font-weight: 800; color: var(--neon-pink); font-size: 1.1rem; min-width: 60px; }
 .rec-reason { font-size: 0.9rem; flex: 1; margin: 0 1rem; }
 .rec-badge { background: var(--neon-blue); color: black; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+
+/* Mobile Responsiveness */
+@media (max-width: 1024px) {
+    .sidebar { width: 240px; padding: 1.5rem; }
+    .content-area { padding: 2rem; }
+    header h1 { font-size: 2.2rem; }
+}
+
+@media (max-width: 768px) {
+    .dashboard-container { flex-direction: column; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--glass-border); padding: 1.5rem; }
+    .logo { margin-bottom: 1.5rem; text-align: center; }
+    .nav-items { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; }
+    .nav-item { margin-bottom: 0; white-space: nowrap; }
+    .content-area { padding: 1.5rem; }
+    header h1 { font-size: 1.8rem; text-align: center; }
+    header p { text-align: center; font-size: 1rem; }
+    .channel-input-card { flex-direction: column; }
+    .btn-primary { padding: 1rem; min-height: 50px; }
+    .video-grid { grid-template-columns: 1fr; }
+    .modal-content { width: 95%; margin: 10% auto; }
+}

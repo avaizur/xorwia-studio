@@ -3,35 +3,70 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const serverless = require('serverless-http');
+const axios = require('axios');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { fetchChannelVideos, createVerticalClip, fetchVideoTranscript } = require('./agent/clip_maker');
+const { uploadToS3AndGetUrl, analyzeTranscriptWithBedrock, debugCodeWithBedrock } = require('./agent/aws_services');
 
 const app = express();
 const PORT = 3000;
 
+// Detect if running on AWS Lambda
+const IS_LAMBDA = !!process.env.LAMBDA_TASK_ROOT;
+const STORAGE_BASE = IS_LAMBDA ? '/tmp' : __dirname;
+const DEPLOY_ENV = process.env.DEPLOY_ENV || 'green'; // 'blue' or 'green'
+
+const mediaDir = path.join(STORAGE_BASE, 'media');
+const outputDir = path.join(STORAGE_BASE, 'output');
+
 // Setup Upload Management
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, 'media')),
+    destination: (req, file, cb) => {
+        if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+        cb(null, mediaDir);
+    },
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-// Ensure media directory exists
-const mediaDir = path.join(__dirname, 'media');
-if (!fs.existsSync(mediaDir)) {
-    fs.mkdirSync(mediaDir, { recursive: true });
-    console.log('[SERVER] 📁 Created media directory');
+// Ensure directories exist safely
+try {
+    if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    console.log(`[${DEPLOY_ENV.toUpperCase()}] 📁 Storage initialized at ${STORAGE_BASE}`);
+} catch (err) {
+    console.warn('[SERVER] ⚠️ Storage warning:', err.message);
 }
 
 app.use(cors());
 app.use(express.json());
+
+// STRIP /nova PREFIX FOR LAMBDA
+app.use((req, res, next) => {
+    if (req.url.startsWith('/nova')) {
+        req.url = req.url.replace('/nova', '') || '/';
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname, 'web')));
-app.use('/output', express.static(path.join(__dirname, 'output')));
+app.use('/output', express.static(outputDir));
 
 /**
  * Health Check
  */
 app.get('/api/status', (req, res) => {
-    res.json({ status: 'Online', agent: 'Agentic Content Repurposer v1.4 (Memory Edition)' });
+    res.json({ 
+        status: 'Online', 
+        environment: DEPLOY_ENV,
+        version: '1.6.0',
+        agent: 'Agentic Content Repurposer (Multi-Payment Edition)' 
+    });
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'UP' });
 });
 
 /**
@@ -64,12 +99,24 @@ app.post('/api/create-clip', async (req, res) => {
     const result = await createVerticalClip(videoUrl, startTime, clipId);
 
     if (result.success) {
-        res.json({
-            success: true,
-            downloadUrl: `http://localhost:${PORT}/output/${result.fileName}`,
-            caption: "🔥 Check this out! #newchannel #shortcontent #tiktok",
-            capcutTip: "💡 PRO TIP: Import this to CapCut and add 'Trending' music to boost views!"
-        });
+        try {
+            // Upload the clip to S3 and generate a Temporary Presigned URL 
+            // (Extremely cheap and perfect for Serverless storage)
+            const s3DownloadUrl = await uploadToS3AndGetUrl(result.filePath, result.fileName);
+            
+            // Clean up the local memory/disk space (Required for Lambda)
+            if (fs.existsSync(result.filePath)) fs.unlinkSync(result.filePath);
+
+            res.json({
+                success: true,
+                downloadUrl: s3DownloadUrl,
+                caption: "🔥 Check this out! #newchannel #shortcontent #tiktok",
+                capcutTip: "💡 PRO TIP: Import this to CapCut and add 'Trending' music to boost views!"
+            });
+        } catch (err) {
+            console.error('[SERVER] AWS S3 Upload Failed:', err.message);
+            res.status(500).json({ error: "Clip generated, but AWS S3 upload failed." });
+        }
     } else {
         res.status(500).json({ error: result.error });
     }
@@ -85,16 +132,23 @@ app.post('/api/analyze-hooks', async (req, res) => {
     console.log(`[SERVER] Analyzing hooks for: ${videoUrl}`);
     const transcript = await fetchVideoTranscript(videoUrl);
 
-    // Simulate AI Hook analysis (In a real set, this sends to an LLM)
-    // For now, I've curated a "Smart Selection" logic:
-    const recommendations = [
-        { time: 10, reason: "🔥 Exciting Intro/Hook", tag: "Viral Start" },
-        { time: 45, reason: "💡 Key Learning/Explainer", tag: "Insightful" },
-        { time: 90, reason: "👀 High Interest Moment", tag: "Must-See" },
-        { time: 240, reason: "🙌 Dramatic Conclusion", tag: "Final Thought" }
-    ];
+    // Call Amazon Bedrock for True AI Analytics Instead of Hardcoded Recommendations
+    const recommendations = await analyzeTranscriptWithBedrock(transcript);
 
     res.json({ success: true, recommendations, snippet: transcript.substring(0, 300) + "..." });
+});
+
+/**
+ * TraceFix AI: Debug Code
+ */
+app.post('/api/tracefix/debug', async (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'No code provided' });
+
+    console.log(`[SERVER] TraceFix analyzing snippet (${code.length} chars)`);
+    const result = await debugCodeWithBedrock(code);
+    
+    res.json({ success: true, ...result });
 });
 
 /**
@@ -134,6 +188,84 @@ app.post('/api/upload-cookies', upload.single('cookies'), (req, res) => {
     }
 });
 
+/**
+ * Stripe Checkout Session Creation
+ */
+app.post('/api/create-checkout-session', async (req, res) => {
+    try {
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'gbp',
+                    product_data: {
+                        name: 'Xorwia Studio - Agent Access',
+                        description: 'Full access to the professional content repurposing engine.',
+                    },
+                    unit_amount: 299, 
+                },
+                quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${protocol}://${host}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${protocol}://${host}/index.html`,
+        });
+        res.json({ id: session.id, url: session.url });
+    } catch (err) {
+        console.error('[STRIPE] ❌ Session creation error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * Validate PayPal Transactions securely via PayPal Orders API
+ */
+app.post('/api/verify-payment', async (req, res) => {
+    const { transactionId } = req.body;
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const secret = process.env.PAYPAL_SECRET;
+
+    if (!transactionId || !clientId || !secret) {
+        return res.status(400).json({ success: false, error: 'Missing Transaction ID or Server Credentials' });
+    }
+
+    try {
+        console.log(`[PAYPAL] Verifying transaction: ${transactionId}`);
+
+        // 1. Get Access Token from PayPal
+        const auth = Buffer.from(`${clientId}:${secret}`).toString('base64');
+        const tokenRes = await axios.post('https://api-m.paypal.com/v1/oauth2/token', 'grant_type=client_credentials', {
+            headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        const accessToken = tokenRes.data.access_token;
+
+        // 2. Verify Order Details
+        const orderRes = await axios.get(`https://api-m.paypal.com/v2/checkout/orders/${transactionId}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        const status = orderRes.data.status;
+        const amount = orderRes.data.purchase_units[0].amount.value;
+
+        if (status === 'COMPLETED' && parseFloat(amount) >= 2.99) {
+            console.log(`[PAYPAL] ✅ Payment Validated for ID: ${transactionId}`);
+            return res.json({ success: true, message: 'Payment authenticated!' });
+        } else {
+            console.warn(`[PAYPAL] ❌ Validation Failure: Status ${status}, Amount ${amount}`);
+            return res.status(401).json({ success: false, error: 'Transaction not completed or invalid amount' });
+        }
+    } catch (err) {
+        console.error('[PAYPAL ERROR]', err.response?.data || err.message);
+        res.status(500).json({ success: false, error: 'Failed to communicate with PayPal' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`[SERVER] Dashboard running at http://localhost:${PORT}`);
 });
+
+// AWS Lambda Serverless Export
+module.exports.handler = serverless(app);

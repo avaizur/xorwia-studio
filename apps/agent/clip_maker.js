@@ -9,15 +9,19 @@ const fs = require('fs');
  * cropping, and clipping YouTube videos.
  */
 
-// Auto-detect FFmpeg path based on OS (Windows .exe vs Linux command)
-const FFMPEG_PATH = process.platform === 'win32' 
-    ? path.join(__dirname, '../../node_modules/ffmpeg-static/ffmpeg.exe') 
-    : 'ffmpeg';
-const YT_DLP_PATH = 'yt-dlp'; // Using direct binary for EC2 reliability
+// Detect if running on AWS Lambda
+const IS_LAMBDA = !!process.env.LAMBDA_TASK_ROOT;
+const STORAGE_BASE = IS_LAMBDA ? '/tmp' : path.join(__dirname, '..');
 
-const OUTPUT_DIR = path.join(__dirname, '../output');
-const TEMP_DIR = path.join(__dirname, '../media/temp');
-const COOKIE_FILE = path.join(__dirname, '../media/cookies.txt');
+const FFMPEG_PATH = IS_LAMBDA 
+    ? '/usr/local/bin/ffmpeg' 
+    : (process.platform === 'win32' ? path.join(__dirname, '../../node_modules/ffmpeg-static/ffmpeg.exe') : 'ffmpeg');
+
+const YT_DLP_PATH = IS_LAMBDA ? '/usr/local/bin/yt-dlp' : 'yt-dlp';
+
+const OUTPUT_DIR = path.join(STORAGE_BASE, 'output');
+const TEMP_DIR = path.join(STORAGE_BASE, 'media/temp');
+const COOKIE_FILE = path.join(STORAGE_BASE, 'media/cookies.txt');
 
 // Helper to get cookies flag
 const getCookiesFlag = () => {
@@ -29,9 +33,13 @@ const getCookiesFlag = () => {
     return '';
 };
 
-// Ensure directories exist
-if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+// Ensure directories exist safely
+try {
+    if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+} catch (err) {
+    console.warn('[AGENT] ⚠️ Storage directory creation warning:', err.message);
+}
 
 /**
  * Fetches video metadata for a YouTube channel.
@@ -39,27 +47,31 @@ if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 async function fetchChannelVideos(channelUrl) {
     console.log(`[AGENT] Fetching videos for: ${channelUrl}`);
     try {
-        const cmd = `${YT_DLP_PATH} ${getCookiesFlag()} --extractor-args "youtubetab:skip=authcheck" --get-title --get-id --get-thumbnail --flat-playlist --max-downloads 10 "${channelUrl}"`;
-        const output = execSync(cmd).toString().split('\n').filter(l => l.trim());
-        
+        const cookiePath = path.join(__dirname, '../media/cookies.txt');
+        const cmd = `${YT_DLP_PATH} --cookies "${cookiePath}" --extractor-args "youtubetab:skip=authcheck" --print "%(title)s ### %(id)s ### %(thumbnail)s" --flat-playlist --max-downloads 10 "${channelUrl}"`;
+    
+        const stdout = execSync(cmd).toString();
+        const lines = stdout.trim().split('\n');
         const videos = [];
-        for (let i = 0; i < output.length; i += 3) {
-            if (output[i]) {
+        
+        for (let line of lines) {
+            const parts = line.split(' ### ');
+            if (parts.length >= 3) {
                 videos.push({
-                    title: output[i],
-                    id: output[i+1],
-                    thumbnail: output[i+2],
-                    url: `https://www.youtube.com/watch?v=${output[i+1]}`
+                    title: parts[0],
+                    id: parts[1],
+                    thumbnail: parts[2],
+                    url: `https://www.youtube.com/watch?v=${parts[1]}`
                 });
             }
         }
         return videos;
-    } catch (e) {
-        console.error('[AGENT] ❌ Fetch Error:', e.message);
-        let errorMsg = e.message;
+    } catch (err) {
+        console.error('[AGENT] ❌ Fetch Error:', err.message);
+        let errorMsg = err.message;
         
         // If we see "Sign in to confirm you are not a bot", the cookies are bad
-        if (e.message.toLowerCase().includes('bot') || e.message.includes('403')) {
+        if (err.message.toLowerCase().includes('bot') || err.message.includes('403')) {
             console.error('[AGENT] 🤖 YouTube flagged us as a bot! Upload fresh cookies.txt.');
             errorMsg = "YouTube blocked this Cloud IP. Please Refresh/Upload your cookies.txt!";
         }
@@ -81,7 +93,8 @@ async function createVerticalClip(videoUrl, startTime, clipId) {
     try {
         // 1. Download segment UNLESS it is already local
         if (!isLocal) {
-            const downloadCmd = `${YT_DLP_PATH} ${getCookiesFlag()} -f "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --external-downloader "${FFMPEG_PATH}" --external-downloader-args "ffmpeg_i:-ss ${startTime} -t 5" -o "${rawFile}" "${videoUrl}"`;
+            const formatStr = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
+            const downloadCmd = `${YT_DLP_PATH} ${getCookiesFlag()} -f "${formatStr}" --external-downloader "${FFMPEG_PATH}" --external-downloader-args "ffmpeg_i:-ss ${startTime} -t 5" -o "${rawFile}" "${videoUrl}"`;
             execSync(downloadCmd);
         }
 

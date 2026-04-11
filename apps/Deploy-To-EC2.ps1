@@ -1,15 +1,17 @@
-# Nova AI Studio - EC2 Deployment Script
-# 🚀 Pushes everything to your server at 35.178.109.32
-# Uses Key: Runway_DevOps_Project_Key.pem
+# XORWIA STUDIO - AWS EC2 Deployment Script
+# 🚀 Pushes everything to your live server at 18.169.74.216
 
-$SERVER_IP = "35.178.109.32"
+$SERVER_IP = "18.169.74.216"
 $KEY_PATH = "C:\Users\aahmad56\Downloads\Runway_DevOps_Project_Key.pem"
-$LOCAL_FOLDER = "C:\Users\aahmad56\.gemini\antigravity\scratch\nova-ai-studio\apps\capcut-agent\*"
-$REMOTE_DEST = "/home/ubuntu/nova-studios/apps/capcut-agent/"
+$LOCAL_ROOT = "C:\Users\aahmad56\.gemini\antigravity\scratch\nova-ai-studio\"
+$REMOTE_DEST = "/home/ubuntu/xorwia-studio/"
 
-Write-Host "📡 Connecting to Nova Cloud Agent on EC2..." -ForegroundColor Cyan
+Write-Host "📡 Connecting to XORWIA CLOUD on AWS..." -ForegroundColor Cyan
 
-# This uses SCP with your .pem key to push all files
-scp -i $KEY_PATH -r $LOCAL_FOLDER "ubuntu@$SERVER_IP`:$REMOTE_DEST"
+# 1. Push Apps (Backend)
+scp -i $KEY_PATH -r "${LOCAL_ROOT}apps" "ubuntu@$SERVER_IP`:$REMOTE_DEST"
 
-Write-Host "✅ Deployment Finished! Please press Ctrl+F5 on your Dashboard at $SERVER_IP`:3000" -ForegroundColor Green
+# 2. Push Web (Frontend)
+scp -i $KEY_PATH -r "${LOCAL_ROOT}web" "ubuntu@$SERVER_IP`:$REMOTE_DEST"
+
+Write-Host "✅ Deployment Finished! Visit https://xorwia.com and refresh." -ForegroundColor Green

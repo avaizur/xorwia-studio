@@ -9,34 +9,37 @@ const fs = require('fs');
  * cropping, and clipping YouTube videos.
  */
 
-// Auto-detect FFmpeg/yt-dlp path based on OS and AWS Lambda environment
-const isLambda = process.env.AWS_EXECUTION_ENV !== undefined || process.env.LAMBDA_TASK_ROOT !== undefined;
+// Detect if running on AWS Lambda
+const IS_LAMBDA = !!process.env.LAMBDA_TASK_ROOT;
+const STORAGE_BASE = IS_LAMBDA ? '/tmp' : path.join(__dirname, '..');
 
-const FFMPEG_PATH = isLambda 
+const FFMPEG_PATH = IS_LAMBDA 
     ? '/usr/local/bin/ffmpeg' 
     : (process.platform === 'win32' ? path.join(__dirname, '../../node_modules/ffmpeg-static/ffmpeg.exe') : 'ffmpeg');
 
-const YT_DLP_PATH = isLambda ? '/usr/local/bin/yt-dlp' : 'yt-dlp';
+const YT_DLP_PATH = IS_LAMBDA ? '/usr/local/bin/yt-dlp' : 'yt-dlp';
 
-const OUTPUT_DIR = path.join(__dirname, '../output');
-const TEMP_DIR = path.join(__dirname, '../media/temp');
-const COOKIE_FILE = path.join(__dirname, '../media/cookies.txt');
+const OUTPUT_DIR = path.join(STORAGE_BASE, 'output');
+const TEMP_DIR = path.join(STORAGE_BASE, 'media/temp');
+const COOKIE_FILE = path.join(STORAGE_BASE, 'media/cookies.txt');
 
 // Helper to get cookies flag
 const getCookiesFlag = () => {
-    // Use relative path or match the deployment path in Deploy-To-EC2.ps1
-    const cookiePath = path.join(__dirname, '../media/cookies.txt');
-    if (fs.existsSync(cookiePath)) {
-        console.log(`[AGENT] ✅ Forced Cookie Bridge: ${cookiePath}`);
-        return `--cookies "${cookiePath}"`;
+    if (fs.existsSync(COOKIE_FILE)) {
+        console.log(`[AGENT] ✅ Using Cookie Bridge: ${COOKIE_FILE}`);
+        return `--cookies "${COOKIE_FILE}"`;
     }
     console.log(`[AGENT] ⚠️ No Cookie Bridge found! AWS IP will likely be blocked.`);
     return '';
 };
 
-// Ensure directories exist
-if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+// Ensure directories exist safely
+try {
+    if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+} catch (err) {
+    console.warn('[AGENT] ⚠️ Storage directory creation warning:', err.message);
+}
 
 /**
  * Fetches video metadata for a YouTube channel.

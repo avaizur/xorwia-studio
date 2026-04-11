@@ -5,24 +5,38 @@ const fs = require('fs');
 const multer = require('multer');
 const serverless = require('serverless-http');
 const axios = require('axios');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { fetchChannelVideos, createVerticalClip, fetchVideoTranscript } = require('./agent/clip_maker');
 const { uploadToS3AndGetUrl, analyzeTranscriptWithBedrock, debugCodeWithBedrock } = require('./agent/aws_services');
 
 const app = express();
 const PORT = 3000;
 
+// Detect if running on AWS Lambda
+const IS_LAMBDA = !!process.env.LAMBDA_TASK_ROOT;
+const STORAGE_BASE = IS_LAMBDA ? '/tmp' : __dirname;
+const DEPLOY_ENV = process.env.DEPLOY_ENV || 'green'; // 'blue' or 'green'
+
+const mediaDir = path.join(STORAGE_BASE, 'media');
+const outputDir = path.join(STORAGE_BASE, 'output');
+
 // Setup Upload Management
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, 'media')),
+    destination: (req, file, cb) => {
+        if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+        cb(null, mediaDir);
+    },
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-// Ensure media directory exists
-const mediaDir = path.join(__dirname, 'media');
-if (!fs.existsSync(mediaDir)) {
-    fs.mkdirSync(mediaDir, { recursive: true });
-    console.log('[SERVER] 📁 Created media directory');
+// Ensure directories exist safely
+try {
+    if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    console.log(`[${DEPLOY_ENV.toUpperCase()}] 📁 Storage initialized at ${STORAGE_BASE}`);
+} catch (err) {
+    console.warn('[SERVER] ⚠️ Storage warning:', err.message);
 }
 
 app.use(cors());
@@ -37,13 +51,18 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, 'web')));
-app.use('/output', express.static(path.join(__dirname, 'output')));
+app.use('/output', express.static(outputDir));
 
 /**
  * Health Check
  */
 app.get('/api/status', (req, res) => {
-    res.json({ status: 'Online', agent: 'Agentic Content Repurposer v1.5 (Professional Serverless Edition)' });
+    res.json({ 
+        status: 'Online', 
+        environment: DEPLOY_ENV,
+        version: '1.6.0',
+        agent: 'Agentic Content Repurposer (Multi-Payment Edition)' 
+    });
 });
 
 app.get('/api/health', (req, res) => {
@@ -166,6 +185,37 @@ app.post('/api/upload-cookies', upload.single('cookies'), (req, res) => {
     } catch (err) {
         console.error('[SERVER] ❌ Cookie upload error:', err.message);
         res.status(500).json({ error: `Server failed to save cookies: ${err.message}` });
+    }
+});
+
+/**
+ * Stripe Checkout Session Creation
+ */
+app.post('/api/create-checkout-session', async (req, res) => {
+    try {
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'gbp',
+                    product_data: {
+                        name: 'Xorwia Studio - Agent Access',
+                        description: 'Full access to the professional content repurposing engine.',
+                    },
+                    unit_amount: 299, 
+                },
+                quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${protocol}://${host}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${protocol}://${host}/index.html`,
+        });
+        res.json({ id: session.id, url: session.url });
+    } catch (err) {
+        console.error('[STRIPE] ❌ Session creation error:', err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XORWIA STUDIO | The Future of Content</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Stripe JavaScript SDK -->
+    <script src="https://js.stripe.com/v3/"></script>
+    <!-- PayPal JavaScript SDK -->
+    <script src="https://www.paypal.com/sdk/js?client-id=test&currency=USD"></script>
+
+    <style>
+        :root {
+            --primary-bg: #030014;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #00f2fe;
+            --accent-pink: #ff00ea;
+            --text-primary: #fff;
+            --text-secondary: #b4b4b4;
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 242, 254, 0.05), transparent 70%);
+        }
+
+        .studio-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: 5px;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            margin-bottom: 4rem;
+            max-width: 600px;
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2.5rem;
+            width: 100%;
+        }
+
+        .app-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 3rem;
+            text-decoration: none;
+            color: white;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--accent);
+            box-shadow: 0 20px 40px -10px rgba(0, 242, 254, 0.2);
+        }
+
+        .app-card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--accent), #fff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 242, 254, 0.1);
+            color: var(--accent);
+            padding: 5px 12px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid var(--accent);
+        }
+
+        .btn-launch {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.8rem 1.5rem;
+            background: var(--accent);
+            color: black;
+            border-radius: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        /* Payment Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .modal-content {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 3rem;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h3 {
+            color: var(--accent);
+            font-size: 1.8rem;
+            margin-top: 0;
+        }
+
+        .price-tag {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 1rem 0;
+        }
+
+        .stripe-btn {
+            background: #6366f1;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            width: 100%;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .stripe-btn:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+
+        #paypal-button-container {
+            margin-top: 1rem;
+            min-height: 150px;
+        }
+
+        .close-btn {
+            background: transparent;
+            color: white;
+            border: none;
+            margin-top: 1rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="studio-container">
+        <div class="logo">XORWIA STUDIO</div>
+        <p class="tagline">The ultimate content creation engine powered by agentic intelligence.</p>
+
+        <div class="app-grid">
+            <div class="app-card" onclick="openPaymentModal()" style="cursor: pointer;">
+                <span class="status-badge">CLOUD LIVE</span>
+                <h2>CapCut Repurposer</h2>
+                <p>Turn one video into 10 viral vertical clips automatically.</p>
+                <div class="btn-launch">Launch Agent ($2.99)</div>
+            </div>
+
+            <a href="/tracefix.html" class="app-card">
+                <span class="status-badge" style="border-color: #ff00ea; color: #ff00ea;">BETA LIVE</span>
+                <h2>TraceFix AI</h2>
+                <p>AI-driven code analysis and automated debugging studio.</p>
+                <div class="btn-launch" style="background: #ff00ea;">Launch Debugger</div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal-content">
+            <h3>Unlock Xorwia Agent</h3>
+            <p>Choose your preferred payment method.</p>
+            <div class="price-tag">$2.99</div>
+            
+            <button class="stripe-btn" onclick="handleStripePayment()">
+                <span>💳 Pay with Card (Stripe)</span>
+            </button>
+
+            <div style="margin: 0.5rem 0; color: var(--text-secondary); font-size: 0.8rem;">— OR —</div>
+
+            <div id="paypal-button-container"></div>
+            <button class="close-btn" onclick="closePaymentModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        const stripe = Stripe('pk_test_51TL0WoKxgzXxVZE80KEodtui2La2tf9Fy5VSH84kPkTUf0AZ1E3OPxPcIY1L2XVoulm1HdF40JX8XzTHo1XQX9pY00SCzZnDHc');
+
+        async function handleStripePayment() {
+            try {
+                const response = await fetch('/api/create-checkout-session', { method: 'POST' });
+                const session = await response.json();
+                if (session.id) {
+                    stripe.redirectToCheckout({ sessionId: session.id });
+                }
+            } catch (err) {
+                console.error('Stripe Error:', err);
+            }
+        }
+
+        function openPaymentModal() {
+            document.getElementById('paymentModal').style.display = 'flex';
+            document.getElementById('paypal-button-container').innerHTML = ''; 
+            
+            paypal.Buttons({
+                style: { layout: 'vertical', color: 'blue', shape: 'rect' },
+                createOrder: (data, actions) => {
+                    return actions.order.create({
+                        purchase_units: [{ amount: { value: '2.99' } }]
+                    });
+                },
+                onApprove: (data, actions) => {
+                    return actions.order.capture().then(details => {
+                        verifyPaymentWithBackend(details.id);
+                    });
+                }
+            }).render('#paypal-button-container');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+        }
+
+        async function verifyPaymentWithBackend(id) {
+            const res = await fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId: id })
+            });
+            const json = await res.json();
+            if (json.success) window.location.href = "/success.html";
+        }
+    </script>
+</body>
+</html>
