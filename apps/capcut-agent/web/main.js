@@ -27,7 +27,7 @@ const navGuide = document.getElementById('nav-guide');
 
 /* --- INITIALIZATION --- */
 window.addEventListener('load', () => {
-    const savedChannel = localStorage.getItem('lastNovaChannel');
+    const savedChannel = localStorage.getItem('lastXorwiaChannel');
     if (savedChannel) {
         channelUrlInput.value = savedChannel;
     }
@@ -36,7 +36,7 @@ window.addEventListener('load', () => {
 fetchBtn.addEventListener('click', () => {
     const url = channelUrlInput.value;
     if (url) {
-        localStorage.setItem('lastNovaChannel', url);
+        localStorage.setItem('lastXorwiaChannel', url);
         fetchChannel(url);
     }
 });
@@ -190,7 +190,7 @@ async function fetchAIHooks(videoUrl) {
  * Upload a video file to the server
  */
 async function uploadVideo(file) {
-    videoGrid.innerHTML = '<div class="loading-state">Uploading video to Nova Cloud...</div>';
+    videoGrid.innerHTML = '<div class="loading-state">Uploading video to Xorwia Cloud...</div>';
     
     const formData = new FormData();
     formData.append('video', file);

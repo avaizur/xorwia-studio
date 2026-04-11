@@ -42,10 +42,10 @@ try {
 app.use(cors());
 app.use(express.json());
 
-// STRIP /nova PREFIX FOR LAMBDA
+// STRIP /studio PREFIX FOR LAMBDA (Xorwia Migration)
 app.use((req, res, next) => {
-    if (req.url.startsWith('/nova')) {
-        req.url = req.url.replace('/nova', '') || '/';
+    if (req.url.startsWith('/studio')) {
+        req.url = req.url.replace('/studio', '') || '/';
     }
     next();
 });

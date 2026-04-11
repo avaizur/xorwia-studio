@@ -5,7 +5,7 @@ const fs = require('fs');
 
 // Initialize AWS Clients
 const REGION = process.env.AWS_REGION || 'us-east-1';
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'nova-studio-clips';
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'xorwia-studio-clips';
 
 const s3Client = new S3Client({ region: REGION });
 const bedrockClient = new BedrockRuntimeClient({ region: REGION });
