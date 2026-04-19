@@ -327,6 +327,7 @@
             transition: var(--transition);
             width: 100%;
             text-align: center;
+            margin-bottom: 10px;
         }
 
         .btn-cyan { background: var(--accent); color: #030014; }
@@ -334,6 +335,14 @@
         .btn-pink { background: var(--accent-pink); color: #fff; }
 
         .btn-launch:hover { transform: translateY(-2px); }
+
+        .learn-more {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-decoration: underline;
+            transition: var(--transition);
+        }
+        .learn-more:hover { color: #fff; }
 
         /* Footer */
         .footer {
@@ -467,8 +476,15 @@
 </head>
 <body>
     <!-- Blue environment banner -->
-    <!-- STAGING BANNER (REMOVE IN PRODUCTION) -->
-<!-- <div class="env-banner">STAGING ENVIRONMENT</div> -->
+    <script>
+        // Inject banner if in staging
+        if (window.location.hostname.includes('green') || window.location.hostname === 'localhost') {
+            const b = document.createElement('div');
+            b.className = 'env-banner';
+            b.textContent = 'STAGING ENVIRONMENT (GREEN)';
+            document.body.appendChild(b);
+        }
+    </script>
 
     <div class="bg-grid"></div>
 
@@ -482,49 +498,52 @@
 
         <div class="app-grid">
             <!-- CapCut Repurposer -->
-            <div class="app-card" onclick="openPaymentModal('capcut')" id="card-capcut">
+            <div class="app-card" id="card-capcut">
                 <span class="status-badge badge-live">CLOUD LIVE</span>
-                <div class="app-icon">🎬</div>
-                <h2>CapCut Repurposer</h2>
-                <p>Turn one video into 10 viral vertical clips automatically with AI hook detection.</p>
-                <ul class="feature-list">
+                <div class="app-icon" onclick="openPaymentModal('capcut')">🎬</div>
+                <h2 onclick="openPaymentModal('capcut')">CapCut Repurposer</h2>
+                <p onclick="openPaymentModal('capcut')">Turn one video into 10 viral vertical clips automatically with AI hook detection.</p>
+                <ul class="feature-list" onclick="openPaymentModal('capcut')">
                     <li>AI-powered hook extraction</li>
                     <li>9:16 auto-crop for TikTok/Reels</li>
                     <li>Amazon Bedrock AI analysis</li>
                     <li>S3 cloud clip delivery</li>
                 </ul>
-                <div class="btn-launch btn-cyan">Launch Agent — £2.99</div>
+                <button class="btn-launch btn-cyan" onclick="openPaymentModal('capcut')">Launch Agent — £2.99</button>
+                <a href="/repurposer" class="learn-more">Learn about Repurposing →</a>
             </div>
 
             <!-- Lectura -->
-            <div class="app-card lectura-card" onclick="openPaymentModal('lectura')" id="card-lectura">
+            <div class="app-card lectura-card" id="card-lectura">
                 <span class="status-badge badge-new">✨ NEW</span>
-                <div class="app-icon">📝</div>
-                <h2>Lectura</h2>
-                <p>Live transcription & smart export engine for students and professionals.</p>
-                <ul class="feature-list">
+                <div class="app-icon" onclick="openPaymentModal('lectura')">📝</div>
+                <h2 onclick="openPaymentModal('lectura')">Lectura</h2>
+                <p onclick="openPaymentModal('lectura')">Live transcription & smart export engine for students and professionals.</p>
+                <ul class="feature-list" onclick="openPaymentModal('lectura')">
                     <li>Real-time speech-to-text</li>
                     <li>Export to PDF, DOCX, TXT</li>
                     <li>AI-powered note enhancement</li>
                     <li>Multi-language support</li>
                 </ul>
-                <div class="btn-launch btn-gold">Launch Lectura — £4.99</div>
+                <button class="btn-launch btn-gold" onclick="openPaymentModal('lectura')">Launch Lectura — £4.99</button>
+                <a href="/lectura" class="learn-more">Learn about Lectura →</a>
             </div>
 
             <!-- TraceFix AI -->
-            <a href="/tracefix.html" class="app-card tracefix-card" id="card-tracefix">
+            <div class="app-card tracefix-card" id="card-tracefix">
                 <span class="status-badge badge-free">FREE</span>
-                <div class="app-icon">🔍</div>
-                <h2>TraceFix AI</h2>
-                <p>AI-driven code analysis and automated debugging studio powered by Bedrock.</p>
-                <ul class="feature-list">
+                <div class="app-icon" onclick="window.location.href='/tracefix'">🔍</div>
+                <h2 onclick="window.location.href='/tracefix'">TraceFix AI</h2>
+                <p onclick="window.location.href='/tracefix'">AI-driven code analysis and automated debugging studio powered by Bedrock.</p>
+                <ul class="feature-list" onclick="window.location.href='/tracefix'">
                     <li>Instant bug detection</li>
                     <li>Auto-generated fix code</li>
                     <li>Multi-language support</li>
                     <li>Claude 3 Haiku engine</li>
                 </ul>
-                <div class="btn-launch btn-pink">Launch Debugger — Free</div>
-            </a>
+                <button class="btn-launch btn-pink" onclick="window.location.href='/tracefix'">Launch Debugger — Free</button>
+                <a href="/tracefix" class="learn-more">Debug Documentation →</a>
+            </div>
         </div>
     </div>
 

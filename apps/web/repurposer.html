@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CapCut Repurposer | Viral AI Video Generator — Xorwia Studio</title>
+    <meta name="description" content="Transform long YouTube videos into viral TikTok, Reels, and Shorts clips with Xorwia's AI CapCut Repurposer. Powered by Amazon Bedrock Claude 3.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #030014;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #00f2fe;
+            --accent-pink: #ff00ea;
+            --text-primary: #fff;
+            --text-secondary: #b4b4b4;
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(0, 242, 254, 0.05), transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(255, 0, 234, 0.05), transparent 50%);
+        }
+
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
+        .navbar {
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(3, 0, 20, 0.85);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .back-link:hover { border-color: var(--accent); color: var(--accent); }
+
+        .logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--accent), var(--accent-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 6rem;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 8vw, 4.5rem);
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 30%, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.6;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            padding: 1.2rem 2.5rem;
+            background: linear-gradient(45deg, var(--accent), var(--accent-pink));
+            color: #030014;
+            text-decoration: none;
+            border-radius: 14px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: var(--transition);
+            box-shadow: 0 10px 30px rgba(0, 242, 254, 0.3);
+        }
+
+        .cta-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 40px rgba(255, 0, 234, 0.4);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        @media (max-width: 900px) {
+            .feature-grid { grid-template-columns: 1fr; }
+        }
+
+        .feature-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 2.5rem;
+            border-radius: 24px;
+            transition: var(--transition);
+        }
+
+        .feature-card:hover { border-color: var(--accent); background: rgba(255,255,255,0.05); }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .feature-card h3 { font-size: 1.5rem; margin-bottom: 1rem; color: var(--accent); }
+        .feature-card p { color: var(--text-secondary); line-height: 1.6; }
+
+        .seo-content {
+            margin-top: 8rem;
+            padding-top: 4rem;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .seo-content h2 { font-size: 2.5rem; margin-bottom: 2rem; text-align: center; }
+        .seo-content article {
+            max-width: 800px;
+            margin: 0 auto;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            font-size: 1.1rem;
+        }
+
+        .seo-content h3 { color: #fff; margin: 2rem 0 1rem; }
+
+        footer {
+            text-align: center;
+            padding: 4rem 2rem;
+            border-top: 1px solid var(--glass-border);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-left">
+            <a href="/" class="back-link">← Studio</a>
+            <a href="/repurposer" class="logo">REPURPOSER</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <section class="hero">
+            <h1>Turn YouTube Videos into Viral Shorts in Seconds.</h1>
+            <p>Xorwia's AI engine identifies high-retention hooks and automatically crops your content for TikTok, Reels, and Shorts using Amazon Bedrock.</p>
+            <a href="/dashboard.html" class="cta-btn">Launch Repurposer Now — £2.99</a>
+        </section>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <span class="feature-icon">🎯</span>
+                <h3>AI Hook Detection</h3>
+                <p>Our Claude 3 Haiku model analyzes your video transcript to find the most engaging moments that stop the scroll.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">✂️</span>
+                <h3>9:16 Auto-Crop</h3>
+                <p>Powered by Serverless FFmpeg, we automatically center and crop your landscape video into perfect vertical clips.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">☁️</span>
+                <h3>S3 Cloud Delivery</h3>
+                <p>Instant high-res downloads stored securely on AWS S3, ready for immediate upload to CapCut or social platforms.</p>
+            </div>
+        </div>
+
+        <section class="seo-content">
+            <h2>Why Use Xorwia CapCut Repurposer?</h2>
+            <article>
+                <p>In the age of short-form content, creators who don't repurpose their long-form videos are leaving views on the table. However, manual editing is time-consuming and expensive. That's where <strong>Xorwia Repurposer</strong> comes in.</p>
+                
+                <h3>The Power of Agentic Intelligence</h3>
+                <p>Unlike simple timestamp tools, Xorwia uses agentic intelligence via Amazon Bedrock to understand the context of your video. It doesn't just look for loud noises; it looks for narratives, punchlines, and educational value that translate perfectly to a 60-second clip.</p>
+
+                <h3>Optimized for the CapCut Workflow</h3>
+                <p>Our vertical clips are generated with technical precision, making them the perfect base for your CapCut edits. Add trending music, auto-captions, and effects to a clip that has already been mathematically optimized for viewer retention.</p>
+
+                <h3>Serverless Speed</h3>
+                <p>Built on AWS Lambda, our system scales instantly. Whether you're processing a 5-minute tutorial or a 2-hour podcast, our distributed architecture ensures your viral clips are ready in under 30 seconds.</p>
+            </article>
+        </section>
+    </div>
+
+    <footer>
+        <p>© 2026 Xorwia Studio. All rights reserved. Powered by Amazon Bedrock & AWS Lambda.</p>
+    </footer>
+
+</body>
+</html>

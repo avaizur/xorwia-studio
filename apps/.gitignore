@@ -4,7 +4,6 @@ media/temp/
 *.tar.gz
 out.log
 .DS_Store
-deployment.zip
-deployment_fixed.zip
+*.zip
 *response*.json
 *.tmp

@@ -50,6 +50,11 @@ app.use((req, res, next) => {
     next();
 });
 
+// SEO Landing Page Routes
+app.get('/lectura', (req, res) => res.sendFile(path.join(__dirname, 'web/lectura.html')));
+app.get('/tracefix', (req, res) => res.sendFile(path.join(__dirname, 'web/tracefix.html')));
+app.get('/repurposer', (req, res) => res.sendFile(path.join(__dirname, 'web/repurposer.html')));
+
 app.use(express.static(path.join(__dirname, 'web')));
 app.use('/output', express.static(outputDir));
 
