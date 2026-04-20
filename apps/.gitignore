@@ -1,0 +1,9 @@
+node_modules/
+output/*.mp4
+media/temp/
+*.tar.gz
+out.log
+.DS_Store
+*.zip
+*response*.json
+*.tmp

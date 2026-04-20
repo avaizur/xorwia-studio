@@ -1,0 +1,43 @@
+name: Deploy Production (BLUE)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-blue:
+    name: Deploy to BLUE/LIVE Track
+    runs-on: windows-latest
+    # This environment 'production' must be configured in GitHub with 
+    # a 'Required Reviewer' protection rule to enable manual approval.
+    environment: production
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        working-directory: apps
+        run: npm install
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Execute XORWIA Deployment (Target BLUE)
+        shell: pwsh
+        run: |
+          ./scripts/deploy_xorwia.ps1 -Target blue

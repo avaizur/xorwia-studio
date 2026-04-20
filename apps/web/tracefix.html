@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TraceFix AI | The Agentic Debugger — Xorwia Studio</title>
+    <meta name="description" content="TraceFix AI — Professional AI debugging engine. Solve JavaScript, Python, and CSS bugs instantly with Amazon Bedrock agentic intelligence.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #030014;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #ff00ea;
+            --secondary: #00f2fe;
+            --text-primary: #fff;
+            --text-secondary: #b4b4b4;
+            --code-bg: #0d0d1a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(3, 0, 20, 0.85);
+            backdrop-filter: blur(20px);
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover { border-color: var(--accent); color: var(--accent); }
+
+        .logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--accent), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 3rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 { color: var(--secondary); margin-top: 0; font-size: 1.4rem; }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            background: var(--code-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: #d1d1e0;
+            font-family: 'Fira Code', monospace;
+            padding: 1.5rem;
+            font-size: 0.95rem;
+            resize: none;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        textarea:focus { border-color: var(--accent); }
+
+        .btn-debug {
+            background: linear-gradient(45deg, var(--accent), var(--secondary));
+            color: black;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            text-transform: uppercase;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .btn-debug:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255, 0, 234, 0.3); }
+        .btn-debug:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .output-panel { display: none; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .issue-card {
+            background: rgba(255, 0, 234, 0.08);
+            border-left: 4px solid var(--accent);
+            padding: 1.2rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .fixed-code-container {
+            background: var(--code-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.2rem;
+        }
+
+        pre {
+            margin: 0;
+            font-family: 'Fira Code', monospace;
+            white-space: pre-wrap;
+            color: #00ff88;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .explanation {
+            margin-top: 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .loader {
+            display: none;
+            margin: 2rem auto;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 0, 234, 0.1);
+            border-left-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-left">
+            <a href="/" class="back-link">← Studio</a>
+            <a href="/tracefix.html" class="logo">TRACEFIX AI</a>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">AGENTIC DEBUGGER v2.0</div>
+    </nav>
+
+    <div class="container">
+        <!-- Input Panel -->
+        <div class="panel">
+            <h2>Paste Broken Code</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                Drop your buggy JavaScript, Python, or HTML here. Xorwia's AI engine will find the fix.
+            </p>
+            <textarea id="codeInput" placeholder="function mystery() {
+  return x + 1;
+}"></textarea>
+            <button class="btn-debug" id="debugBtn" onclick="runDebugger()">Analyze & Fix</button>
+            <div class="loader" id="loader"></div>
+        </div>
+
+        <!-- Output Panel -->
+        <div class="panel" id="outputPanel" style="display: none;">
+            <h2>AI Analysis Results</h2>
+            <div id="resultsContainer">
+                <div class="issue-card">
+                    <strong style="color: var(--accent);">ISSUE IDENTIFIED:</strong>
+                    <div id="issueText" style="margin-top: 0.5rem;"></div>
+                </div>
+
+                <h3 style="margin-bottom: 0.8rem;">Fixed Solution:</h3>
+                <div class="fixed-code-container">
+                    <pre id="fixedCode"></pre>
+                </div>
+
+                <div class="explanation">
+                    <strong style="color: var(--secondary);">EXPLANATION:</strong>
+                    <p id="explanationText"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="seo-content" style="margin-top: 6rem; padding-top: 4rem; border-top: 1px solid var(--glass-border); max-width: 1200px; margin-left: auto; margin-right: auto; padding-left: 2rem; padding-right: 2rem;">
+        <h2 style="text-align: center; margin-bottom: 2rem; font-size: 2rem; color: var(--accent);">The Future of Automated Debugging</h2>
+        <div style="max-width: 800px; margin: 0 auto; color: var(--text-secondary); line-height: 1.8; font-size: 1rem;">
+            <p>TraceFix AI is the ultimate developer companion for rapid bug resolution. By leveraging agentic intelligence, TraceFix goes beyond simple syntax checking to understand the logic and intent behind your code.</p>
+            
+            <h3 style="color: #fff; margin: 1.5rem 0 0.8rem;">Instant Analysis powered by Bedrock</h3>
+            <p>Our system uses Amazon Bedrock (Claude 3 Haiku) to perform deep code analysis. It identifies not only syntax errors but also logical fallacies, edge cases, and potential security vulnerabilities in seconds.</p>
+
+            <h3 style="color: #fff; margin: 1.5rem 0 0.8rem;">Multi-Language Support</h3>
+            <p>From complex JavaScript callbacks to Python data structures and CSS layout issues, TraceFix handles a wide range of modern programming languages. It provides clear, actionable explanations that help you learn as you fix.</p>
+
+            <h3 style="color: #fff; margin: 1.5rem 0 0.8rem;">Zero-Config Setup</h3>
+            <p>No extensions, no IDE plugins, and no complicated setup. Simply paste your code, hit Analyze, and get your solution. TraceFix is designed for the modern web-first developer workflow.</p>
+        </div>
+    </section>
+
+    <footer style="text-align: center; padding: 4rem 2rem; border-top: 1px solid var(--glass-border); color: var(--text-secondary); font-size: 0.8rem; margin-top: 4rem;">
+        <p>© 2026 Xorwia Studio. All rights reserved. Built on AWS Lambda.</p>
+    </footer>
+
+    <script>
+        async function runDebugger() {
+            const code = document.getElementById('codeInput').value.trim();
+            if (!code) return alert('Please enter some code!');
+
+            const btn = document.getElementById('debugBtn');
+            const loader = document.getElementById('loader');
+            const outputPanel = document.getElementById('outputPanel');
+
+            btn.disabled = true;
+            btn.innerText = "Processing Logic...";
+            loader.style.display = 'block';
+            outputPanel.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/tracefix/debug', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById('issueText').innerText = data.issue;
+                    document.getElementById('fixedCode').innerText = data.fix;
+                    document.getElementById('explanationText').innerText = data.explanation;
+                    outputPanel.style.display = 'block';
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to analyze code.'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Connection Error. Check your server.');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Analyze & Fix";
+                loader.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
