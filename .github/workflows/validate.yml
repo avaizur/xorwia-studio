@@ -1,0 +1,53 @@
+name: Validation
+
+on:
+  pull_request:
+    branches: [ main, staging ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Governance & Build Check
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Governance Check (Forbidden Directory)
+        shell: pwsh
+        run: |
+          if (Test-Path "web") {
+            Write-Error "CRITICAL ERROR: Forbidden root-level 'web/' directory detected. Please delete it and use 'apps/web/'."
+            exit 1
+          }
+          Write-Host "✅ Governance check passed: No forbidden root-level directories found." -ForegroundColor Green
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: apps
+        run: npm install
+
+      - name: Dry Run Packaging
+        shell: pwsh
+        run: |
+          $APPS_DIR = "apps"
+          $ZIP_NAME = "dry_run_validation.zip"
+          $ZIP_PATH = Join-Path $APPS_DIR $ZIP_NAME
+          
+          Write-Host "Testing packaging logic..."
+          tar -ac -f $ZIP_PATH -C $APPS_DIR server.js package.json agent web node_modules
+          
+          if (Test-Path $ZIP_PATH) {
+            Write-Host "✅ Packaging validation successful." -ForegroundColor Green
+            Remove-Item $ZIP_PATH
+          } else {
+            Write-Error "Packaging failed during validation."
+            exit 1
+          }
