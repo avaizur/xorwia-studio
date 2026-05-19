@@ -146,10 +146,56 @@ app.post('/api/analyze-hooks', async (req, res) => {
     res.json({ success: true, recommendations, snippet: transcript.substring(0, 300) + "..." });
 });
 
+const TRACEFIX_FREE_CREDITS = 3;
+const TRACEFIX_COOLDOWN_MS = 60 * 1000;
+const TRACEFIX_MAX_CODE_CHARS = 1000000; // approx 1MB
+const tracefixUsers = new Map();
+
+function tracefixGuard(req, res, next) {
+    const { code } = req.body || {};
+    const authHeader = req.headers.authorization;
+
+    if (!code) {
+        return res.status(400).json({ error: 'No code provided' });
+    }
+
+    if (code.length > TRACEFIX_MAX_CODE_CHARS) {
+        return res.status(413).json({ error: 'TraceFix input too large. Maximum allowed size is 1MB.' });
+    }
+
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Please sign in to use TraceFix AI analysis.' });
+    }
+
+    const userId = authHeader.replace('Bearer ', '').trim();
+    const now = Date.now();
+
+    if (!tracefixUsers.has(userId)) {
+        tracefixUsers.set(userId, { credits: TRACEFIX_FREE_CREDITS, lastRequestAt: 0 });
+    }
+
+    const user = tracefixUsers.get(userId);
+
+    if (now - user.lastRequestAt < TRACEFIX_COOLDOWN_MS) {
+        return res.status(429).json({ error: 'Please wait 60 seconds before running another TraceFix analysis.' });
+    }
+
+    if (user.credits <= 0) {
+        return res.status(403).json({ error: 'You have used your free TraceFix credits. Please upgrade to continue.' });
+    }
+
+    user.credits -= 1;
+    user.lastRequestAt = now;
+    tracefixUsers.set(userId, user);
+
+    req.tracefixUser = user;
+    next();
+}
+
 /**
  * TraceFix AI: Debug Code
  */
-app.post('/api/tracefix/debug', async (req, res) => {
+app.post('/api/tracefix/debug', tracefixGuard, async (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'No code provided' });
 
