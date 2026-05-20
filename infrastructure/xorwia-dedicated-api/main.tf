@@ -1,5 +1,5 @@
 resource "aws_apigatewayv2_api" "xorwia_api" {
-  name         = "xorwia-nova-http-api"
+  name          = "xorwia-nova-http-api"
   protocol_type = "HTTP"
   description   = "Dedicated additive HTTP API for TraceFix validation"
 
@@ -15,27 +15,28 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.xorwia_api.id
   name        = "$default"
   auto_deploy = true
-
-  tags = {
-    Project     = "xorwia-tracefix"
-    Environment = "green-validation"
-    ManagedBy   = "terraform"
-    Isolation   = "additive-only"
-  }
 }
 
 resource "aws_apigatewayv2_integration" "green" {
-  api_id           = aws_apigatewayv2_api.xorwia_api.id
-  integration_type = "AWS_PROXY"
-  integration_uri  = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${var.aws_region}:${var.account_id}:function:${var.lambda_function_name}:green/invocations"
+  api_id             = aws_apigatewayv2_api.xorwia_api.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${var.aws_region}:${var.account_id}:function:${var.lambda_function_name}:green/invocations"
   integration_method = "POST"
+
+  request_parameters = {
+    "overwrite:path" = "/$request.path.proxy"
+  }
 }
 
 resource "aws_apigatewayv2_integration" "blue" {
-  api_id           = aws_apigatewayv2_api.xorwia_api.id
-  integration_type = "AWS_PROXY"
-  integration_uri  = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${var.aws_region}:${var.account_id}:function:${var.lambda_function_name}:blue/invocations"
+  api_id             = aws_apigatewayv2_api.xorwia_api.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${var.aws_region}:${var.account_id}:function:${var.lambda_function_name}:blue/invocations"
   integration_method = "POST"
+
+  request_parameters = {
+    "overwrite:path" = "/$request.path.proxy"
+  }
 }
 
 resource "aws_apigatewayv2_route" "green" {
