@@ -265,16 +265,26 @@ app.post('/api/upload-cookies', upload.single('cookies'), (req, res) => {
  */
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
-        const { productName, amount, successUrl } = req.body;
+        const { productName, amount, successUrl, email } = req.body;
         const protocol = req.protocol;
         const host = req.get('host');
 
         // Dynamic product pricing
-        const finalAmount = amount || 299; // Default £2.99
+        const finalAmount = Number(amount) || 299; // Default £2.99
         const finalProductName = productName || 'Xorwia Studio - Agent Access';
         const finalSuccessPath = successUrl || '/success.html';
 
-        const session = await stripe.checkout.sessions.create({
+        // Work out product key for access control
+        const productNameLower = finalProductName.toLowerCase();
+
+        let product = 'capcut';
+        if (productNameLower.includes('lectura') || finalAmount === 499) {
+            product = 'lectura';
+        } else if (productNameLower.includes('capcut') || finalAmount === 299) {
+            product = 'capcut';
+        }
+
+        const sessionPayload = {
             payment_method_types: ['card'],
             line_items: [{
                 price_data: {
@@ -283,21 +293,32 @@ app.post('/api/create-checkout-session', async (req, res) => {
                         name: finalProductName,
                         description: `Full access via Xorwia Studio.`,
                     },
-                    unit_amount: finalAmount, 
+                    unit_amount: finalAmount,
                 },
                 quantity: 1,
             }],
             mode: 'payment',
-            success_url: `${protocol}://${host}${finalSuccessPath}?session_id={CHECKOUT_SESSION_ID}`,
+            success_url: `${protocol}://${host}${finalSuccessPath}?session_id={CHECKOUT_SESSION_ID}&product=${product}`,
             cancel_url: `${protocol}://${host}/index.html`,
-        });
+            metadata: {
+                product,
+                productName: finalProductName,
+                accessRule: product === 'lectura' ? '6_months' : '5_videos_or_20_clips'
+            }
+        };
+
+        // Optional: if frontend sends email, attach it to Checkout
+        if (email && email.includes('@')) {
+            sessionPayload.customer_email = email.toLowerCase().trim();
+        }
+
+        const session = await stripe.checkout.sessions.create(sessionPayload);
         res.json({ id: session.id, url: session.url });
     } catch (err) {
         console.error('[STRIPE] ❌ Session creation error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
-
 /**
  * Validate PayPal Transactions securely via PayPal Orders API
  */
