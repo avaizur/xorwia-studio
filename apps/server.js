@@ -6,16 +6,48 @@ const multer = require('multer');
 const serverless = require('serverless-http');
 const axios = require('axios');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const {
+  DynamoDBDocumentClient,
+  GetCommand,
+  UpdateCommand
+} = require('@aws-sdk/lib-dynamodb');
+
 const { fetchChannelVideos, createVerticalClip, fetchVideoTranscript } = require('./agent/clip_maker');
 const { uploadToS3AndGetUrl, analyzeTranscriptWithBedrock, debugCodeWithBedrock, enhanceTranscriptWithBedrock } = require('./agent/aws_services');
 
 const app = express();
 const PORT = 3000;
 
+const dynamoClient = new DynamoDBClient({
+  region: process.env.AWS_REGION || 'eu-west-2'
+});
+
+const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
+
+const ACCESS_TABLE_NAME =
+  process.env.ACCESS_TABLE_NAME || 'xorwia_user_access';
+
+const LECTURA_ACCESS_MONTHS =
+  Number(process.env.LECTURA_ACCESS_MONTHS || 6);
+
+const CAPCUT_VIDEO_CREDITS =
+  Number(process.env.CAPCUT_VIDEO_CREDITS || 5);
+
+const CAPCUT_CLIP_CREDITS =
+  Number(process.env.CAPCUT_CLIP_CREDITS || 20);
+
+// One CapCut purchase is a shared allowance: 5 videos OR 20 clips.
+// Internally we use 20 units: one clip = 1 unit, one video = 4 units.
+const CAPCUT_TOTAL_UNITS = CAPCUT_CLIP_CREDITS;
+const CAPCUT_VIDEO_UNIT_COST =
+  Math.max(1, Math.floor(CAPCUT_TOTAL_UNITS / CAPCUT_VIDEO_CREDITS));
+
 // Detect if running on AWS Lambda
 const IS_LAMBDA = !!process.env.LAMBDA_TASK_ROOT;
 const STORAGE_BASE = IS_LAMBDA ? '/tmp' : __dirname;
-const DEPLOY_ENV = process.env.DEPLOY_ENV || 'green'; // Default to green if not specified by AWS environment
+const DEPLOY_ENV = process.env.DEPLOY_ENV || 'green';
 
 const mediaDir = path.join(STORAGE_BASE, 'media');
 const outputDir = path.join(STORAGE_BASE, 'output');
@@ -39,7 +71,203 @@ try {
     console.warn('[SERVER] ⚠️ Storage warning:', err.message);
 }
 
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function normalizeProduct(value) {
+    const product = String(value || '').trim().toLowerCase();
+    return ['lectura', 'capcut'].includes(product) ? product : null;
+}
+
+async function getAccessRecord(email, product) {
+    const result = await dynamodb.send(
+        new GetCommand({
+            TableName: ACCESS_TABLE_NAME,
+            Key: { email, product }
+        })
+    );
+
+    return result.Item || null;
+}
+
 app.use(cors());
+
+/**
+ * Stripe Webhook
+ *
+ * IMPORTANT:
+ * This route must be registered BEFORE app.use(express.json()).
+ * Stripe signature verification requires the original raw request body.
+ */
+app.post(
+    '/stripe/webhook',
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+        const signature = req.headers['stripe-signature'];
+        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+        if (!signature || !webhookSecret) {
+            console.error('[STRIPE WEBHOOK] Missing signature or webhook secret');
+            return res.status(400).send('Webhook configuration error');
+        }
+
+        let event;
+
+        try {
+            event = stripe.webhooks.constructEvent(
+                req.body,
+                signature,
+                webhookSecret
+            );
+        } catch (err) {
+            console.error(
+                '[STRIPE WEBHOOK] Signature verification failed:',
+                err.message
+            );
+            return res.status(400).send(`Webhook Error: ${err.message}`);
+        }
+
+        if (event.type !== 'checkout.session.completed') {
+            return res.status(200).json({ received: true, ignored: true });
+        }
+
+        const session = event.data.object;
+
+        try {
+            // We only grant access after Stripe reports the session as paid.
+            if (session.payment_status !== 'paid') {
+                console.warn('[STRIPE WEBHOOK] Checkout completed but not paid', {
+                    sessionId: session.id,
+                    paymentStatus: session.payment_status
+                });
+                return res.status(200).json({
+                    received: true,
+                    accessGranted: false,
+                    reason: 'payment_not_paid'
+                });
+            }
+
+            const email = normalizeEmail(
+                session.customer_details?.email ||
+                session.customer_email
+            );
+
+            const product = normalizeProduct(session.metadata?.product);
+
+            if (!email || !product) {
+                console.error(
+                    '[STRIPE WEBHOOK] Missing/invalid email or product metadata',
+                    { sessionId: session.id }
+                );
+
+                return res.status(400).json({
+                    error: 'Missing or invalid email/product metadata'
+                });
+            }
+
+            const now = new Date();
+            const nowIso = now.toISOString();
+            const sessionSet = new Set([session.id]);
+
+            if (product === 'lectura') {
+                // A genuine repeat purchase extends the current valid access;
+                // an expired account starts again from now.
+                const existing = await getAccessRecord(email, product);
+
+                let accessBase = now;
+                if (existing?.access_until) {
+                    const existingUntil = new Date(existing.access_until);
+                    if (
+                        !Number.isNaN(existingUntil.getTime()) &&
+                        existingUntil > now
+                    ) {
+                        accessBase = existingUntil;
+                    }
+                }
+
+                const accessUntil = new Date(accessBase);
+                accessUntil.setMonth(
+                    accessUntil.getMonth() + LECTURA_ACCESS_MONTHS
+                );
+
+                await dynamodb.send(
+                    new UpdateCommand({
+                        TableName: ACCESS_TABLE_NAME,
+                        Key: { email, product },
+                        UpdateExpression:
+                            'SET payment_status = :paid, stripe_session_id = :sessionId, purchased_at = :purchasedAt, updated_at = :updatedAt, access_until = :accessUntil ADD processed_session_ids :sessionSet',
+                        ConditionExpression:
+                            'attribute_not_exists(processed_session_ids) OR NOT contains(processed_session_ids, :sessionId)',
+                        ExpressionAttributeValues: {
+                            ':paid': 'paid',
+                            ':sessionId': session.id,
+                            ':purchasedAt': nowIso,
+                            ':updatedAt': nowIso,
+                            ':accessUntil': accessUntil.toISOString(),
+                            ':sessionSet': sessionSet
+                        }
+                    })
+                );
+            }
+
+            if (product === 'capcut') {
+                // Add one shared allowance for a genuine new purchase.
+                // 20 units = 5 videos OR 20 clips (or a proportional mixture).
+                await dynamodb.send(
+                    new UpdateCommand({
+                        TableName: ACCESS_TABLE_NAME,
+                        Key: { email, product },
+                        UpdateExpression:
+                            'SET payment_status = :paid, stripe_session_id = :sessionId, purchased_at = :purchasedAt, updated_at = :updatedAt ADD credits_remaining :credits, processed_session_ids :sessionSet',
+                        ConditionExpression:
+                            'attribute_not_exists(processed_session_ids) OR NOT contains(processed_session_ids, :sessionId)',
+                        ExpressionAttributeValues: {
+                            ':paid': 'paid',
+                            ':sessionId': session.id,
+                            ':purchasedAt': nowIso,
+                            ':updatedAt': nowIso,
+                            ':credits': CAPCUT_TOTAL_UNITS,
+                            ':sessionSet': sessionSet
+                        }
+                    })
+                );
+            }
+
+            console.log('[STRIPE WEBHOOK] Paid access saved', {
+                email,
+                product,
+                sessionId: session.id
+            });
+
+            return res.status(200).json({
+                received: true,
+                accessGranted: true
+            });
+        } catch (err) {
+            // Stripe retries webhook deliveries. The same Checkout Session must
+            // never reset or add credits twice.
+            if (err.name === 'ConditionalCheckFailedException') {
+                console.log('[STRIPE WEBHOOK] Duplicate event ignored', {
+                    sessionId: session.id
+                });
+
+                return res.status(200).json({
+                    received: true,
+                    duplicate: true
+                });
+            }
+
+            console.error('[STRIPE WEBHOOK] Processing failed:', err);
+
+            return res.status(500).json({
+                error: 'Webhook processing failed'
+            });
+        }
+    }
+);
+
+// All normal JSON APIs come AFTER the Stripe raw-body webhook.
 app.use(express.json());
 
 // STRIP /studio PREFIX FOR LAMBDA (Xorwia Migration)
@@ -59,16 +287,155 @@ app.use(express.static(path.join(__dirname, 'web')));
 app.use('/output', express.static(outputDir));
 
 /**
+ * Paid Access Check
+ *
+ * Examples:
+ * /api/access/check?email=user@example.com&product=lectura
+ * /api/access/check?email=user@example.com&product=capcut
+ */
+app.get('/api/access/check', async (req, res) => {
+    try {
+        const email = normalizeEmail(req.query.email);
+        const product = normalizeProduct(req.query.product);
+
+        if (!email || !product) {
+            return res.status(400).json({
+                error: 'Valid email and product are required'
+            });
+        }
+
+        const item = await getAccessRecord(email, product);
+
+        if (!item || item.payment_status !== 'paid') {
+            return res.json({
+                hasAccess: false,
+                product
+            });
+        }
+
+        if (product === 'lectura') {
+            const accessUntil = item.access_until
+                ? new Date(item.access_until)
+                : null;
+
+            const hasAccess = Boolean(
+                accessUntil &&
+                !Number.isNaN(accessUntil.getTime()) &&
+                accessUntil > new Date()
+            );
+
+            return res.json({
+                hasAccess,
+                product,
+                access_until: item.access_until || null
+            });
+        }
+
+        const creditsRemaining = Number(item.credits_remaining || 0);
+        const videosRemaining =
+            Math.floor(creditsRemaining / CAPCUT_VIDEO_UNIT_COST);
+        const clipsRemaining = creditsRemaining;
+
+        return res.json({
+            hasAccess: creditsRemaining > 0,
+            product,
+            credits_remaining: creditsRemaining,
+            videos_remaining: videosRemaining,
+            clips_remaining: clipsRemaining
+        });
+    } catch (err) {
+        console.error('[ACCESS CHECK] Failed:', err);
+
+        return res.status(500).json({
+            error: 'Unable to check access'
+        });
+    }
+});
+
+/**
+ * CapCut Credit Consumption
+ *
+ * Frontend calls this after a successful paid operation.
+ * body: { email, usageType: "video" | "clip" }
+ *
+ * DynamoDB condition prevents the balance from going below zero.
+ */
+app.post('/api/access/consume', async (req, res) => {
+    try {
+        const email = normalizeEmail(req.body?.email);
+        const usageType = String(req.body?.usageType || '').trim().toLowerCase();
+
+        if (!email || !['video', 'clip'].includes(usageType)) {
+            return res.status(400).json({
+                error: 'Valid email and usageType (video or clip) are required'
+            });
+        }
+
+        const unitsToConsume =
+            usageType === 'video'
+                ? CAPCUT_VIDEO_UNIT_COST
+                : 1;
+
+        const result = await dynamodb.send(
+            new UpdateCommand({
+                TableName: ACCESS_TABLE_NAME,
+                Key: {
+                    email,
+                    product: 'capcut'
+                },
+                UpdateExpression:
+                    'SET credits_remaining = credits_remaining - :units, updated_at = :updatedAt',
+                ConditionExpression:
+                    'payment_status = :paid AND attribute_exists(credits_remaining) AND credits_remaining >= :units',
+                ExpressionAttributeValues: {
+                    ':units': unitsToConsume,
+                    ':paid': 'paid',
+                    ':updatedAt': new Date().toISOString()
+                },
+                ReturnValues: 'ALL_NEW'
+            })
+        );
+
+        const creditsRemaining =
+            Number(result.Attributes?.credits_remaining || 0);
+
+        return res.json({
+            success: true,
+            product: 'capcut',
+            usageType,
+            credits_remaining: creditsRemaining,
+            videos_remaining:
+                Math.floor(creditsRemaining / CAPCUT_VIDEO_UNIT_COST),
+            clips_remaining: creditsRemaining
+        });
+    } catch (err) {
+        if (err.name === 'ConditionalCheckFailedException') {
+            return res.status(403).json({
+                success: false,
+                error: 'No remaining CapCut credits for this usage type'
+            });
+        }
+
+        console.error('[ACCESS CONSUME] Failed:', err);
+
+        return res.status(500).json({
+            success: false,
+            error: 'Unable to consume access credit'
+        });
+    }
+});
+
+/**
  * Health Check
  */
 app.get('/api/status', (req, res) => {
-    res.json({ 
-        status: 'Online', 
+    res.json({
+        status: 'Online',
         environment: DEPLOY_ENV,
-        version: '2.0.0',
+        version: '2.1.0',
         platform: 'Xorwia Studio',
         tools: ['CapCut Repurposer', 'Lectura', 'TraceFix AI'],
-        agent: 'Xorwia Studio v2.0 (Multi-Tool + Multi-Payment Edition)' 
+        agent: 'Xorwia Studio v2.1 (Paid Access Memory)'
     });
 });
 
@@ -85,11 +452,11 @@ app.post('/api/fetch-channel', async (req, res) => {
 
     console.log(`[SERVER] Fetching channel: ${url}`);
     const result = await fetchChannelVideos(url);
-    
+
     if (result.error) {
         return res.status(500).json({ error: result.error });
     }
-    
+
     res.json(result);
 });
 
@@ -99,7 +466,7 @@ app.post('/api/fetch-channel', async (req, res) => {
 app.post('/api/create-clip', async (req, res) => {
     const { videoUrl, startTime, id } = req.body;
     if (!videoUrl || startTime === undefined || startTime === null)
-    return res.status(400).json({ error: 'Missing parameters' });
+        return res.status(400).json({ error: 'Missing parameters' });
 
     const clipId = id || Date.now();
     console.log(`[SERVER] Creating vertical clip for: ${videoUrl} at ${startTime}s`);
@@ -108,11 +475,8 @@ app.post('/api/create-clip', async (req, res) => {
 
     if (result.success) {
         try {
-            // Upload the clip to S3 and generate a Temporary Presigned URL 
-            // (Extremely cheap and perfect for Serverless storage)
             const s3DownloadUrl = await uploadToS3AndGetUrl(result.filePath, result.fileName);
-            
-            // Clean up the local memory/disk space (Required for Lambda)
+
             if (fs.existsSync(result.filePath)) fs.unlinkSync(result.filePath);
 
             res.json({
@@ -140,15 +504,18 @@ app.post('/api/analyze-hooks', async (req, res) => {
     console.log(`[SERVER] Analyzing hooks for: ${videoUrl}`);
     const transcript = await fetchVideoTranscript(videoUrl);
 
-    // Call Amazon Bedrock for True AI Analytics Instead of Hardcoded Recommendations
     const recommendations = await analyzeTranscriptWithBedrock(transcript);
 
-    res.json({ success: true, recommendations, snippet: transcript.substring(0, 300) + "..." });
+    res.json({
+        success: true,
+        recommendations,
+        snippet: transcript.substring(0, 300) + "..."
+    });
 });
 
 const TRACEFIX_FREE_CREDITS = 3;
 const TRACEFIX_COOLDOWN_MS = 60 * 1000;
-const TRACEFIX_MAX_CODE_CHARS = 1000000; // approx 1MB
+const TRACEFIX_MAX_CODE_CHARS = 1000000;
 const tracefixUsers = new Map();
 
 function tracefixGuard(req, res, next) {
@@ -160,28 +527,39 @@ function tracefixGuard(req, res, next) {
     }
 
     if (code.length > TRACEFIX_MAX_CODE_CHARS) {
-        return res.status(413).json({ error: 'TraceFix input too large. Maximum allowed size is 1MB.' });
+        return res.status(413).json({
+            error: 'TraceFix input too large. Maximum allowed size is 1MB.'
+        });
     }
 
     if (!authHeader) {
-        return res.status(401).json({ error: 'Please sign in to use TraceFix AI analysis.' });
+        return res.status(401).json({
+            error: 'Please sign in to use TraceFix AI analysis.'
+        });
     }
 
     const userId = authHeader.replace('Bearer ', '').trim();
     const now = Date.now();
 
     if (!tracefixUsers.has(userId)) {
-        tracefixUsers.set(userId, { credits: TRACEFIX_FREE_CREDITS, lastRequestAt: 0 });
+        tracefixUsers.set(userId, {
+            credits: TRACEFIX_FREE_CREDITS,
+            lastRequestAt: 0
+        });
     }
 
     const user = tracefixUsers.get(userId);
 
     if (now - user.lastRequestAt < TRACEFIX_COOLDOWN_MS) {
-        return res.status(429).json({ error: 'Please wait 60 seconds before running another TraceFix analysis.' });
+        return res.status(429).json({
+            error: 'Please wait 60 seconds before running another TraceFix analysis.'
+        });
     }
 
     if (user.credits <= 0) {
-        return res.status(403).json({ error: 'You have used your free TraceFix credits. Please upgrade to continue.' });
+        return res.status(403).json({
+            error: 'You have used your free TraceFix credits. Please upgrade to continue.'
+        });
     }
 
     user.credits -= 1;
@@ -201,7 +579,7 @@ app.post('/api/tracefix/debug', tracefixGuard, async (req, res) => {
 
     console.log(`[SERVER] TraceFix analyzing snippet (${code.length} chars)`);
     const result = await debugCodeWithBedrock(code);
-    
+
     res.json({ success: true, ...result });
 });
 
@@ -212,8 +590,10 @@ app.post('/api/lectura/enhance', async (req, res) => {
     const { transcript, lang } = req.body;
     if (!transcript) return res.status(400).json({ error: 'No transcript provided' });
 
-    console.log(`[SERVER] Lectura enhancing transcript (${transcript.length} chars, lang: ${lang || 'en-GB'})`);
-    
+    console.log(
+        `[SERVER] Lectura enhancing transcript (${transcript.length} chars, lang: ${lang || 'en-GB'})`
+    );
+
     try {
         const enhanced = await enhanceTranscriptWithBedrock(transcript, lang);
         res.json({ success: true, enhanced });
@@ -231,9 +611,9 @@ app.post('/api/upload-video', upload.single('video'), (req, res) => {
 
     res.json({
         success: true,
-        videoUrl: `local://${req.file.path}`, // Special local marker
+        videoUrl: `local://${req.file.path}`,
         title: req.file.originalname,
-        thumbnail: 'https://images.unsplash.com/photo-1542204172-356399558651?auto=format&fit=crop&q=80&w=300&h=170', // Placeholder for local
+        thumbnail: 'https://images.unsplash.com/photo-1542204172-356399558651?auto=format&fit=crop&q=80&w=300&h=170',
         id: Date.now()
     });
 });
@@ -243,25 +623,29 @@ app.post('/api/upload-video', upload.single('video'), (req, res) => {
  */
 app.post('/api/upload-cookies', upload.single('cookies'), (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'No cookies file uploaded' });
+        if (!req.file) {
+            return res.status(400).json({ error: 'No cookies file uploaded' });
+        }
 
-        // Move to standard location
         const finalPath = path.join(__dirname, 'media/cookies.txt');
-        
-        // Use copy + unlink instead of rename because rename 
-        // doesn't work across different disk partitions (common on EC2)
+
         fs.copyFileSync(req.file.path, finalPath);
         fs.unlinkSync(req.file.path);
 
-        res.json({ success: true, message: 'Cookie Bridge active! YouTube URLs unlocked.' });
+        res.json({
+            success: true,
+            message: 'Cookie Bridge active! YouTube URLs unlocked.'
+        });
     } catch (err) {
         console.error('[SERVER] ❌ Cookie upload error:', err.message);
-        res.status(500).json({ error: `Server failed to save cookies: ${err.message}` });
+        res.status(500).json({
+            error: `Server failed to save cookies: ${err.message}`
+        });
     }
 });
 
 /**
- * Stripe Checkout Session Creation (Dynamic — supports multiple products)
+ * Stripe Checkout Session Creation
  */
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
@@ -269,19 +653,35 @@ app.post('/api/create-checkout-session', async (req, res) => {
         const protocol = req.protocol;
         const host = req.get('host');
 
-        // Dynamic product pricing
-        const finalAmount = Number(amount) || 299; // Default £2.99
-        const finalProductName = productName || 'Xorwia Studio - Agent Access';
+        const finalAmount = Number(amount) || 299;
+        const finalProductName =
+            productName || 'Xorwia Studio - Agent Access';
         const finalSuccessPath = successUrl || '/success.html';
 
-        // Work out product key for access control
         const productNameLower = finalProductName.toLowerCase();
 
         let product = 'capcut';
-        if (productNameLower.includes('lectura') || finalAmount === 499) {
+
+        if (
+            productNameLower.includes('lectura') ||
+            finalAmount === 499
+        ) {
             product = 'lectura';
-        } else if (productNameLower.includes('capcut') || finalAmount === 299) {
+        } else if (
+            productNameLower.includes('capcut') ||
+            finalAmount === 299
+        ) {
             product = 'capcut';
+        }
+
+        // Server-side price enforcement prevents a client from changing the
+        // amount and receiving paid access for an arbitrary value.
+        const expectedAmount = product === 'lectura' ? 499 : 299;
+
+        if (finalAmount !== expectedAmount) {
+            return res.status(400).json({
+                error: 'Invalid product price'
+            });
         }
 
         const sessionPayload = {
@@ -291,34 +691,51 @@ app.post('/api/create-checkout-session', async (req, res) => {
                     currency: 'gbp',
                     product_data: {
                         name: finalProductName,
-                        description: `Full access via Xorwia Studio.`,
+                        description: 'Full access via Xorwia Studio.'
                     },
-                    unit_amount: finalAmount,
+                    unit_amount: expectedAmount
                 },
-                quantity: 1,
+                quantity: 1
             }],
             mode: 'payment',
-            success_url: `${protocol}://${host}${finalSuccessPath}?session_id={CHECKOUT_SESSION_ID}&product=${product}`,
+            success_url:
+                `${protocol}://${host}${finalSuccessPath}` +
+                `?session_id={CHECKOUT_SESSION_ID}&product=${product}`,
             cancel_url: `${protocol}://${host}/index.html`,
             metadata: {
                 product,
                 productName: finalProductName,
-                accessRule: product === 'lectura' ? '6_months' : '5_videos_or_20_clips'
+                accessRule:
+                    product === 'lectura'
+                        ? '6_months'
+                        : '5_videos_or_20_clips'
             }
         };
 
-        // Optional: if frontend sends email, attach it to Checkout
         if (email && email.includes('@')) {
-            sessionPayload.customer_email = email.toLowerCase().trim();
+            sessionPayload.customer_email =
+                normalizeEmail(email);
         }
 
-        const session = await stripe.checkout.sessions.create(sessionPayload);
-        res.json({ id: session.id, url: session.url });
+        const session =
+            await stripe.checkout.sessions.create(sessionPayload);
+
+        res.json({
+            id: session.id,
+            url: session.url
+        });
     } catch (err) {
-        console.error('[STRIPE] ❌ Session creation error:', err.message);
-        res.status(500).json({ error: err.message });
+        console.error(
+            '[STRIPE] ❌ Session creation error:',
+            err.message
+        );
+
+        res.status(500).json({
+            error: err.message
+        });
     }
 });
+
 /**
  * Validate PayPal Transactions securely via PayPal Orders API
  */
@@ -328,44 +745,83 @@ app.post('/api/verify-payment', async (req, res) => {
     const secret = process.env.PAYPAL_SECRET;
 
     if (!transactionId || !clientId || !secret) {
-        return res.status(400).json({ success: false, error: 'Missing Transaction ID or Server Credentials' });
+        return res.status(400).json({
+            success: false,
+            error: 'Missing Transaction ID or Server Credentials'
+        });
     }
 
     try {
         console.log(`[PAYPAL] Verifying transaction: ${transactionId}`);
 
-        // 1. Get Access Token from PayPal
-        const auth = Buffer.from(`${clientId}:${secret}`).toString('base64');
-        const tokenRes = await axios.post('https://api-m.paypal.com/v1/oauth2/token', 'grant_type=client_credentials', {
-            headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
+        const auth =
+            Buffer.from(`${clientId}:${secret}`).toString('base64');
+
+        const tokenRes = await axios.post(
+            'https://api-m.paypal.com/v1/oauth2/token',
+            'grant_type=client_credentials',
+            {
+                headers: {
+                    'Authorization': `Basic ${auth}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            }
+        );
 
         const accessToken = tokenRes.data.access_token;
 
-        // 2. Verify Order Details
-        const orderRes = await axios.get(`https://api-m.paypal.com/v2/checkout/orders/${transactionId}`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
+        const orderRes = await axios.get(
+            `https://api-m.paypal.com/v2/checkout/orders/${transactionId}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            }
+        );
 
         const status = orderRes.data.status;
-        const paymentAmount = orderRes.data.purchase_units[0].amount.value;
+        const paymentAmount =
+            orderRes.data.purchase_units[0].amount.value;
 
-        // Accept any valid completed payment (supports multiple products at different prices)
-        if (status === 'COMPLETED' && parseFloat(paymentAmount) >= 1.99) {
-            console.log(`[PAYPAL] ✅ Payment Validated for ID: ${transactionId} — Amount: £${paymentAmount}`);
-            return res.json({ success: true, message: 'Payment authenticated!' });
-        } else {
-            console.warn(`[PAYPAL] ❌ Validation Failure: Status ${status}, Amount ${paymentAmount}`);
-            return res.status(401).json({ success: false, error: 'Transaction not completed or invalid amount' });
+        if (
+            status === 'COMPLETED' &&
+            parseFloat(paymentAmount) >= 1.99
+        ) {
+            console.log(
+                `[PAYPAL] ✅ Payment Validated for ID: ${transactionId} — Amount: £${paymentAmount}`
+            );
+
+            return res.json({
+                success: true,
+                message: 'Payment authenticated!'
+            });
         }
+
+        console.warn(
+            `[PAYPAL] ❌ Validation Failure: Status ${status}, Amount ${paymentAmount}`
+        );
+
+        return res.status(401).json({
+            success: false,
+            error: 'Transaction not completed or invalid amount'
+        });
     } catch (err) {
-        console.error('[PAYPAL ERROR]', err.response?.data || err.message);
-        res.status(500).json({ success: false, error: 'Failed to communicate with PayPal' });
+        console.error(
+            '[PAYPAL ERROR]',
+            err.response?.data || err.message
+        );
+
+        res.status(500).json({
+            success: false,
+            error: 'Failed to communicate with PayPal'
+        });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`[SERVER] Xorwia Studio v2.0 running at http://localhost:${PORT}`);
+    console.log(
+        `[SERVER] Xorwia Studio v2.1 running at http://localhost:${PORT}`
+    );
 });
 
 // AWS Lambda Serverless Export
