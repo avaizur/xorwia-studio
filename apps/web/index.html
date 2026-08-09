@@ -591,6 +591,7 @@
 
         // Payment state
         let selectedProduct = null;
+    let customerEmail = '';
         const products = {
             capcut: {
                 key: 'capcut',
@@ -612,17 +613,54 @@
 
         const stripe = Stripe('pk_live_51TL0WoKxgzXxVZE8i8C7twzAUHTAXX8zzrzQFGgDs5J0ipwc5j2at4aOXn0x7yhvjzKoqLn1VWWWYa0tDnpEZ3aI00Rrz6Uahs');
 
-        function openPaymentModal(productKey) {
-            selectedProduct = products[productKey];
-            if (!selectedProduct) return;
+        async function openPaymentModal(productKey) {
+        selectedProduct = products[productKey];
+        if (!selectedProduct) return;
 
-            document.getElementById('modalTitle').textContent = 'Unlock ' + selectedProduct.name;
-            document.getElementById('modalProductName').textContent = 'Xorwia Studio — ' + selectedProduct.name;
-            document.getElementById('modalPrice').textContent = selectedProduct.price;
-            document.getElementById('paymentModal').style.display = 'flex';
-            document.getElementById('paypal-button-container').innerHTML = '';
+        const email = prompt('Please enter your email address to continue:');
+        if (!email) {
+            selectedProduct = null;
+            return;
+        }
 
-            paypal.Buttons({
+        customerEmail = email.trim().toLowerCase();
+
+        if (!customerEmail.includes('@')) {
+            alert('Please enter a valid email address.');
+            selectedProduct = null;
+            customerEmail = '';
+            return;
+        }
+
+        try {
+            const accessResponse = await fetch(
+                '/api/access/check?email=' +
+                encodeURIComponent(customerEmail) +
+                '&product=' +
+                encodeURIComponent(selectedProduct.key)
+            );
+
+            const access = await accessResponse.json();
+
+            if (access.hasAccess) {
+                window.location.href = selectedProduct.successRedirect;
+                return;
+            }
+        } catch (err) {
+            console.error('Access check failed:', err);
+            alert('Unable to check existing access. Please try again.');
+            selectedProduct = null;
+            customerEmail = '';
+            return;
+        }
+
+        document.getElementById('modalTitle').textContent = 'Unlock ' + selectedProduct.name;
+        document.getElementById('modalProductName').textContent = 'Xorwia Studio — ' + selectedProduct.name;
+        document.getElementById('modalPrice').textContent = selectedProduct.price;
+        document.getElementById('paymentModal').style.display = 'flex';
+        document.getElementById('paypal-button-container').innerHTML = '';
+
+        paypal.Buttons({
                 style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'paypal', height: 45 },
                 createOrder: (data, actions) => {
                     return actions.order.create({
@@ -646,9 +684,10 @@
         }
 
         function closePaymentModal() {
-            document.getElementById('paymentModal').style.display = 'none';
-            selectedProduct = null;
-        }
+        document.getElementById('paymentModal').style.display = 'none';
+        selectedProduct = null;
+        customerEmail = '';
+    }
 
         async function handleStripePayment() {
             if (!selectedProduct) return;
@@ -657,10 +696,12 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        productName: selectedProduct.name,
-                        amount: selectedProduct.amount,
-                        successUrl: selectedProduct.successRedirect
-                    })
+                    productName: selectedProduct.name,
+                    product: selectedProduct.key,
+                    amount: selectedProduct.amount,
+                    successUrl: selectedProduct.successRedirect,
+                    email: customerEmail
+                })
                 });
                 const session = await response.json();
                 if (session.id) {
