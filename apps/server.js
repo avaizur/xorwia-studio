@@ -737,17 +737,27 @@ app.post('/api/create-checkout-session', async (req, res) => {
 });
 
 /**
- * Validate PayPal Transactions securely via PayPal Orders API
+ * Validate PayPal payment and save paid access in DynamoDB
  */
 app.post('/api/verify-payment', async (req, res) => {
-    const { transactionId } = req.body;
+    const {
+        transactionId,
+        product: rawProduct
+    } = req.body;
+
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const secret = process.env.PAYPAL_SECRET;
+    const product = normalizeProduct(rawProduct);
 
-    if (!transactionId || !clientId || !secret) {
+    if (
+        !transactionId ||
+        !clientId ||
+        !secret ||
+        !product
+    ) {
         return res.status(400).json({
             success: false,
-            error: 'Missing Transaction ID or Server Credentials'
+            error: 'Missing transaction, product, or server credentials'
         });
     }
 
@@ -779,41 +789,160 @@ app.post('/api/verify-payment', async (req, res) => {
             }
         );
 
-        const status = orderRes.data.status;
+        const order = orderRes.data;
+
+        const status = order.status;
         const paymentAmount =
-            orderRes.data.purchase_units[0].amount.value;
+            order.purchase_units?.[0]?.amount?.value;
+        const currency =
+            order.purchase_units?.[0]?.amount?.currency_code;
+
+        // Use PayPal's verified payer email, not browser-supplied email.
+        const email =
+            normalizeEmail(order.payer?.email_address);
+
+        const expectedAmount =
+            product === 'lectura' ? '4.99' : '2.99';
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                error: 'PayPal did not return a verified payer email'
+            });
+        }
 
         if (
-            status === 'COMPLETED' &&
-            parseFloat(paymentAmount) >= 1.99
+            status !== 'COMPLETED' ||
+            paymentAmount !== expectedAmount ||
+            currency !== 'GBP'
+        ) {
+            console.warn('[PAYPAL] Validation failure', {
+                transactionId,
+                status,
+                paymentAmount,
+                currency,
+                product
+            });
+
+            return res.status(401).json({
+                success: false,
+                error: 'Transaction not completed or amount/product mismatch'
+            });
+        }
+
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const processedSet = new Set([transactionId]);
+
+        if (product === 'lectura') {
+            const existing =
+                await getAccessRecord(email, product);
+
+            let baseDate = now;
+
+            if (existing?.access_until) {
+                const currentExpiry =
+                    new Date(existing.access_until);
+
+                if (
+                    !Number.isNaN(currentExpiry.getTime()) &&
+                    currentExpiry > now
+                ) {
+                    baseDate = currentExpiry;
+                }
+            }
+
+            const accessUntil = new Date(baseDate);
+
+            accessUntil.setMonth(
+                accessUntil.getMonth() +
+                LECTURA_ACCESS_MONTHS
+            );
+
+            await dynamodb.send(
+                new UpdateCommand({
+                    TableName: ACCESS_TABLE_NAME,
+                    Key: {
+                        email,
+                        product
+                    },
+                    UpdateExpression:
+                        'SET payment_status = :paid, paypal_transaction_id = :transactionId, purchased_at = :purchasedAt, updated_at = :updatedAt, access_until = :accessUntil ADD processed_paypal_ids :processedSet',
+                    ConditionExpression:
+                        'attribute_not_exists(processed_paypal_ids) OR NOT contains(processed_paypal_ids, :transactionId)',
+                    ExpressionAttributeValues: {
+                        ':paid': 'paid',
+                        ':transactionId': transactionId,
+                        ':purchasedAt': nowIso,
+                        ':updatedAt': nowIso,
+                        ':accessUntil':
+                            accessUntil.toISOString(),
+                        ':processedSet': processedSet
+                    }
+                })
+            );
+        }
+
+        if (product === 'capcut') {
+            await dynamodb.send(
+                new UpdateCommand({
+                    TableName: ACCESS_TABLE_NAME,
+                    Key: {
+                        email,
+                        product
+                    },
+                    UpdateExpression:
+                        'SET payment_status = :paid, paypal_transaction_id = :transactionId, purchased_at = :purchasedAt, updated_at = :updatedAt ADD credits_remaining :credits, processed_paypal_ids :processedSet',
+                    ConditionExpression:
+                        'attribute_not_exists(processed_paypal_ids) OR NOT contains(processed_paypal_ids, :transactionId)',
+                    ExpressionAttributeValues: {
+                        ':paid': 'paid',
+                        ':transactionId': transactionId,
+                        ':purchasedAt': nowIso,
+                        ':updatedAt': nowIso,
+                        ':credits': CAPCUT_TOTAL_UNITS,
+                        ':processedSet': processedSet
+                    }
+                })
+            );
+        }
+
+        console.log('[PAYPAL] Paid access saved', {
+            email,
+            product,
+            transactionId
+        });
+
+        return res.json({
+            success: true,
+            message: 'Payment authenticated and access activated!'
+        });
+
+    } catch (err) {
+        if (
+            err.name ===
+            'ConditionalCheckFailedException'
         ) {
             console.log(
-                `[PAYPAL] ✅ Payment Validated for ID: ${transactionId} — Amount: £${paymentAmount}`
+                '[PAYPAL] Duplicate payment ignored',
+                { transactionId }
             );
 
             return res.json({
                 success: true,
-                message: 'Payment authenticated!'
+                duplicate: true,
+                message: 'Payment already processed'
             });
         }
 
-        console.warn(
-            `[PAYPAL] ❌ Validation Failure: Status ${status}, Amount ${paymentAmount}`
-        );
-
-        return res.status(401).json({
-            success: false,
-            error: 'Transaction not completed or invalid amount'
-        });
-    } catch (err) {
         console.error(
             '[PAYPAL ERROR]',
             err.response?.data || err.message
         );
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            error: 'Failed to communicate with PayPal'
+            error: 'Failed to verify PayPal payment'
         });
     }
 });

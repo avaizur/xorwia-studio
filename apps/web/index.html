@@ -593,6 +593,7 @@
         let selectedProduct = null;
         const products = {
             capcut: {
+                key: 'capcut',
                 name: 'CapCut Repurposer',
                 price: '£2.99',
                 amount: 299,
@@ -600,6 +601,7 @@
                 successRedirect: '/dashboard.html'
             },
             lectura: {
+                key: 'lectura',
                 name: 'Lectura — Live Transcription',
                 price: '£4.99',
                 amount: 499,
@@ -632,7 +634,12 @@
                 },
                 onApprove: (data, actions) => {
                     return actions.order.capture().then(details => {
-                        verifyPaymentWithBackend(details.id, selectedProduct.successRedirect);
+                        verifyPaymentWithBackend(
+                        details.id,
+                        selectedProduct.successRedirect,
+                        details.payer?.email_address,
+                        selectedProduct.key
+                    );
                     });
                 }
             }).render('#paypal-button-container');
@@ -667,12 +674,16 @@
             }
         }
 
-        async function verifyPaymentWithBackend(transactionId, redirectUrl) {
+        async function verifyPaymentWithBackend(transactionId, redirectUrl, email, product) {
             try {
                 const res = await fetch('/api/verify-payment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactionId })
+                    body: JSON.stringify({
+                    transactionId,
+                    email,
+                    product
+                })
                 });
                 const json = await res.json();
                 if (json.success) {
