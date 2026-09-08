@@ -16,6 +16,12 @@ const {
 
 const { fetchChannelVideos, createVerticalClip, fetchVideoTranscript } = require('./agent/clip_maker');
 const { uploadToS3AndGetUrl, analyzeTranscriptWithBedrock, debugCodeWithBedrock, enhanceTranscriptWithBedrock } = require('./agent/aws_services');
+const {
+  handleEntitlementCheck,
+  setDynamoDbClient: setEntitlementsDynamoDbClient,
+  getEntitlementRecord,
+  putEntitlementRecord
+} = require('./agent/entitlements');
 
 const app = express();
 const PORT = 3000;
@@ -25,6 +31,7 @@ const dynamoClient = new DynamoDBClient({
 });
 
 const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
+setEntitlementsDynamoDbClient(dynamodb);
 
 const ACCESS_TABLE_NAME =
   process.env.ACCESS_TABLE_NAME || 'xorwia_user_access';
@@ -285,6 +292,16 @@ app.get('/repurposer', (req, res) => res.sendFile(path.join(__dirname, 'web/repu
 
 app.use(express.static(path.join(__dirname, 'web')));
 app.use('/output', express.static(outputDir));
+
+/**
+ * Shared Billing Entitlement Check (Service-to-Service)
+ *
+ * Example:
+ * POST /api/billing/entitlement
+ * Headers: Authorization: Bearer <token>
+ * Body: { "external_user_id": "hayder:<cognito_sub>", "product": "HAYDER_PRO" }
+ */
+app.post('/api/billing/entitlement', handleEntitlementCheck);
 
 /**
  * Paid Access Check
@@ -947,11 +964,22 @@ app.post('/api/verify-payment', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(
-        `[SERVER] Xorwia Studio v2.1 running at http://localhost:${PORT}`
-    );
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(
+            `[SERVER] Xorwia Studio v2.1 running at http://localhost:${PORT}`
+        );
+    });
+}
 
 // AWS Lambda Serverless Export
-module.exports.handler = serverless(app);
+const handler = serverless(app);
+module.exports = {
+    app,
+    handler,
+    dynamodb,
+    getAccessRecord,
+    getEntitlementRecord,
+    putEntitlementRecord
+};
+module.exports.handler = handler;
