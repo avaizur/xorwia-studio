@@ -1,9 +1,11 @@
 # 🚀 XORWIA STUDIO | CI/CD Unified Deployment Script
-# Usage: .\deploy_xorwia.ps1 -Target [green|blue]
+# Usage:
+#   .\deploy_xorwia.ps1 -Target blue  # Staging: Packages, publishes new version, and updates ONLY alias 'blue'
+#   .\deploy_xorwia.ps1 -Target live  # Production: Promotes current version on 'blue' to alias 'live' without publishing new code
 
 param (
     [Parameter(Mandatory=$true)]
-    [ValidateSet("green", "blue")]
+    [ValidateSet("blue", "live")]
     [string]$Target
 )
 
@@ -21,44 +23,75 @@ if (Test-Path "web") {
     exit 1
 }
 
-# 2. PACKAGING: Ensure only 'apps' is included
-Write-Host "[1/4] Packaging apps/ content into $ZIP_NAME..."
-if (Test-Path $ZIP_PATH) { Remove-Item $ZIP_PATH }
+if ($Target -eq "blue") {
+    # 2. PACKAGING: Ensure only 'apps' is included
+    Write-Host "[1/4] Packaging apps/ content into $ZIP_NAME..."
+    if (Test-Path $ZIP_PATH) { Remove-Item $ZIP_PATH }
 
-# Use tar for speed and precision
-tar -ac -f $ZIP_PATH -C $APPS_DIR server.js package.json agent web node_modules
+    # Use tar for speed and precision
+    tar -ac -f $ZIP_PATH -C $APPS_DIR server.js package.json agent web node_modules
 
-if (-not (Test-Path $ZIP_PATH)) {
-    Write-Error "Packaging failed."
-    exit 1
-}
+    if (-not (Test-Path $ZIP_PATH)) {
+        Write-Error "Packaging failed."
+        exit 1
+    }
 
-# 3. AWS UPLOAD & PUBLISH
-Write-Host "[2/4] Uploading to AWS Lambda & Publishing New Version..."
-$deployResult = aws lambda update-function-code `
-    --function-name $FUNCTION_NAME `
-    --zip-file "fileb://$ZIP_PATH" `
-    --region $REGION `
-    --publish
+    # 3. AWS UPLOAD & PUBLISH
+    Write-Host "[2/4] Uploading to AWS Lambda & Publishing New Version..."
+    $deployResult = aws lambda update-function-code `
+        --function-name $FUNCTION_NAME `
+        --zip-file "fileb://$ZIP_PATH" `
+        --region $REGION `
+        --publish
 
-$newVersion = ($deployResult | ConvertFrom-Json).Version
-Write-Host "✅ Version $newVersion Published." -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0 -or -not $deployResult) {
+        Write-Error "Failed to upload function code and publish new version."
+        exit 1
+    }
 
-# 4. ALIAS MAPPING
-if ($Target -eq "green") {
-    Write-Host "[3/4] Mapping GREEN (Staging) to Version $newVersion..."
-    aws lambda update-alias --function-name $FUNCTION_NAME --name green --function-version $newVersion --region $REGION
+    $deployedVersion = ($deployResult | Out-String | ConvertFrom-Json).Version
+    if (-not $deployedVersion) {
+        Write-Error "Failed to parse published version from AWS Lambda response."
+        exit 1
+    }
+    Write-Host "✅ Version $deployedVersion Published." -ForegroundColor Green
+
+    # 4. ALIAS MAPPING: Update ONLY blue
+    Write-Host "[3/4] Mapping BLUE (Staging) to Version $deployedVersion..."
+    aws lambda update-alias --function-name $FUNCTION_NAME --name blue --function-version $deployedVersion --region $REGION
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to update alias 'blue' to version $deployedVersion."
+        exit 1
+    }
+
+    # 5. CLEANUP
+    Write-Host "[4/4] Cleaning up artifacts..."
+    # Remove-Item $ZIP_PATH
 } else {
-    Write-Host "[3/4] Mapping BLUE/LIVE (Production) to Version $newVersion..."
-    # Atomic switch for all production aliases
-    aws lambda update-alias --function-name $FUNCTION_NAME --name live --function-version $newVersion --region $REGION
-    aws lambda update-alias --function-name $FUNCTION_NAME --name blue --function-version $newVersion --region $REGION
-}
+    # Target is 'live': Promotion track (no packaging, no new version published)
+    Write-Host "[1/2] Fetching active version from alias 'blue'..."
+    $blueAliasJson = aws lambda get-alias --function-name $FUNCTION_NAME --name blue --region $REGION
+    if ($LASTEXITCODE -ne 0 -or -not $blueAliasJson) {
+        Write-Error "Failed to fetch alias 'blue' from AWS Lambda."
+        exit 1
+    }
 
-# 5. CLEANUP
-Write-Host "[4/4] Cleaning up artifacts..."
-# Remove-Item $ZIP_PATH
+    $deployedVersion = ($blueAliasJson | Out-String | ConvertFrom-Json).FunctionVersion
+    if (-not $deployedVersion) {
+        Write-Error "Failed to resolve FunctionVersion from alias 'blue'."
+        exit 1
+    }
+    Write-Host "ℹ️ Alias 'blue' is currently pointing to Version $deployedVersion." -ForegroundColor Cyan
+
+    # ALIAS MAPPING: Update ONLY live to the exact version tested on blue
+    Write-Host "[2/2] Mapping LIVE (Production) to Version $deployedVersion..."
+    aws lambda update-alias --function-name $FUNCTION_NAME --name live --function-version $deployedVersion --region $REGION
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to promote alias 'live' to version $deployedVersion."
+        exit 1
+    }
+}
 
 Write-Host "`n🎉 XORWIA STUDIO DEPLOYMENT SUCCESSFUL!" -ForegroundColor Green
 Write-Host "Target: $($Target.ToUpper())" -ForegroundColor Cyan
-Write-Host "Version: $newVersion" -ForegroundColor Cyan
+Write-Host "Version: $deployedVersion" -ForegroundColor Cyan
