@@ -289,6 +289,7 @@ app.use((req, res, next) => {
 app.get('/lectura', (req, res) => res.sendFile(path.join(__dirname, 'web/lectura.html')));
 app.get('/tracefix', (req, res) => res.sendFile(path.join(__dirname, 'web/tracefix.html')));
 app.get('/repurposer', (req, res) => res.sendFile(path.join(__dirname, 'web/repurposer.html')));
+app.get('/hayder', (req, res) => res.redirect(302, 'https://is9bdp47z3.execute-api.eu-west-2.amazonaws.com/hayder'));
 
 app.use(express.static(path.join(__dirname, 'web')));
 app.use('/output', express.static(outputDir));
