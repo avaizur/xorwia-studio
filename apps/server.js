@@ -22,6 +22,14 @@ const {
   getEntitlementRecord,
   putEntitlementRecord
 } = require('./agent/entitlements');
+const {
+  createCheckoutSessionHandler,
+  setStripeClient,
+  setCognitoJwks,
+  setCognitoJwksFetcher,
+  clearCognitoJwksCache,
+  verifyCognitoIdentity
+} = require('./agent/checkout');
 
 const app = express();
 const PORT = 3000;
@@ -664,95 +672,9 @@ app.post('/api/upload-cookies', upload.single('cookies'), (req, res) => {
 
 /**
  * Stripe Checkout Session Creation
+ * Supports HAYDER_PRO subscriptions (monthly/annual) and Lectura/CapCut one-time payments.
  */
-app.post('/api/create-checkout-session', async (req, res) => {
-    try {
-        const { productName, amount, successUrl, email } = req.body;
-        const protocol = req.protocol;
-        const host = req.get('host');
-
-        const finalAmount = Number(amount) || 299;
-        const finalProductName =
-            productName || 'Xorwia Studio - Agent Access';
-        const finalSuccessPath = successUrl || '/success.html';
-
-        const productNameLower = finalProductName.toLowerCase();
-
-        let product = 'capcut';
-
-        if (
-            productNameLower.includes('lectura') ||
-            finalAmount === 499
-        ) {
-            product = 'lectura';
-        } else if (
-            productNameLower.includes('capcut') ||
-            finalAmount === 299
-        ) {
-            product = 'capcut';
-        }
-
-        // Server-side price enforcement prevents a client from changing the
-        // amount and receiving paid access for an arbitrary value.
-        const expectedAmount = product === 'lectura' ? 499 : 299;
-
-        if (finalAmount !== expectedAmount) {
-            return res.status(400).json({
-                error: 'Invalid product price'
-            });
-        }
-
-        const sessionPayload = {
-            payment_method_types: ['card'],
-            line_items: [{
-                price_data: {
-                    currency: 'gbp',
-                    product_data: {
-                        name: finalProductName,
-                        description: 'Full access via Xorwia Studio.'
-                    },
-                    unit_amount: expectedAmount
-                },
-                quantity: 1
-            }],
-            mode: 'payment',
-            success_url:
-                `${protocol}://${host}${finalSuccessPath}` +
-                `?session_id={CHECKOUT_SESSION_ID}&product=${product}`,
-            cancel_url: `${protocol}://${host}/index.html`,
-            metadata: {
-                product,
-                productName: finalProductName,
-                accessRule:
-                    product === 'lectura'
-                        ? '6_months'
-                        : '5_videos_or_20_clips'
-            }
-        };
-
-        if (email && email.includes('@')) {
-            sessionPayload.customer_email =
-                normalizeEmail(email);
-        }
-
-        const session =
-            await stripe.checkout.sessions.create(sessionPayload);
-
-        res.json({
-            id: session.id,
-            url: session.url
-        });
-    } catch (err) {
-        console.error(
-            '[STRIPE] ❌ Session creation error:',
-            err.message
-        );
-
-        res.status(500).json({
-            error: err.message
-        });
-    }
-});
+app.post('/api/create-checkout-session', createCheckoutSessionHandler(stripe));
 
 /**
  * Validate PayPal payment and save paid access in DynamoDB
@@ -979,8 +901,14 @@ module.exports = {
     app,
     handler,
     dynamodb,
+    stripe,
     getAccessRecord,
     getEntitlementRecord,
-    putEntitlementRecord
+    putEntitlementRecord,
+    setStripeClient,
+    setCognitoJwks,
+    setCognitoJwksFetcher,
+    clearCognitoJwksCache,
+    verifyCognitoIdentity
 };
 module.exports.handler = handler;
