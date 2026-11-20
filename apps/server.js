@@ -30,6 +30,10 @@ const {
   clearCognitoJwksCache,
   verifyCognitoIdentity
 } = require('./agent/checkout');
+const {
+  createStripeWebhookHandler,
+  setWebhookStripeClient
+} = require('./agent/stripe_webhook');
 
 const app = express();
 const PORT = 3000;
@@ -114,172 +118,18 @@ app.use(cors());
  * IMPORTANT:
  * This route must be registered BEFORE app.use(express.json()).
  * Stripe signature verification requires the original raw request body.
+ * Supports HAYDER_PRO subscription lifecycle events and preserves Lectura/CapCut one-time payments.
  */
 app.post(
     '/stripe/webhook',
     express.raw({ type: 'application/json' }),
-    async (req, res) => {
-        const signature = req.headers['stripe-signature'];
-        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-        if (!signature || !webhookSecret) {
-            console.error('[STRIPE WEBHOOK] Missing signature or webhook secret');
-            return res.status(400).send('Webhook configuration error');
-        }
-
-        let event;
-
-        try {
-            event = stripe.webhooks.constructEvent(
-                req.body,
-                signature,
-                webhookSecret
-            );
-        } catch (err) {
-            console.error(
-                '[STRIPE WEBHOOK] Signature verification failed:',
-                err.message
-            );
-            return res.status(400).send(`Webhook Error: ${err.message}`);
-        }
-
-        if (event.type !== 'checkout.session.completed') {
-            return res.status(200).json({ received: true, ignored: true });
-        }
-
-        const session = event.data.object;
-
-        try {
-            // We only grant access after Stripe reports the session as paid.
-            if (session.payment_status !== 'paid') {
-                console.warn('[STRIPE WEBHOOK] Checkout completed but not paid', {
-                    sessionId: session.id,
-                    paymentStatus: session.payment_status
-                });
-                return res.status(200).json({
-                    received: true,
-                    accessGranted: false,
-                    reason: 'payment_not_paid'
-                });
-            }
-
-            const email = normalizeEmail(
-                session.customer_details?.email ||
-                session.customer_email
-            );
-
-            const product = normalizeProduct(session.metadata?.product);
-
-            if (!email || !product) {
-                console.error(
-                    '[STRIPE WEBHOOK] Missing/invalid email or product metadata',
-                    { sessionId: session.id }
-                );
-
-                return res.status(400).json({
-                    error: 'Missing or invalid email/product metadata'
-                });
-            }
-
-            const now = new Date();
-            const nowIso = now.toISOString();
-            const sessionSet = new Set([session.id]);
-
-            if (product === 'lectura') {
-                // A genuine repeat purchase extends the current valid access;
-                // an expired account starts again from now.
-                const existing = await getAccessRecord(email, product);
-
-                let accessBase = now;
-                if (existing?.access_until) {
-                    const existingUntil = new Date(existing.access_until);
-                    if (
-                        !Number.isNaN(existingUntil.getTime()) &&
-                        existingUntil > now
-                    ) {
-                        accessBase = existingUntil;
-                    }
-                }
-
-                const accessUntil = new Date(accessBase);
-                accessUntil.setMonth(
-                    accessUntil.getMonth() + LECTURA_ACCESS_MONTHS
-                );
-
-                await dynamodb.send(
-                    new UpdateCommand({
-                        TableName: ACCESS_TABLE_NAME,
-                        Key: { email, product },
-                        UpdateExpression:
-                            'SET payment_status = :paid, stripe_session_id = :sessionId, purchased_at = :purchasedAt, updated_at = :updatedAt, access_until = :accessUntil ADD processed_session_ids :sessionSet',
-                        ConditionExpression:
-                            'attribute_not_exists(processed_session_ids) OR NOT contains(processed_session_ids, :sessionId)',
-                        ExpressionAttributeValues: {
-                            ':paid': 'paid',
-                            ':sessionId': session.id,
-                            ':purchasedAt': nowIso,
-                            ':updatedAt': nowIso,
-                            ':accessUntil': accessUntil.toISOString(),
-                            ':sessionSet': sessionSet
-                        }
-                    })
-                );
-            }
-
-            if (product === 'capcut') {
-                // Add one shared allowance for a genuine new purchase.
-                // 20 units = 5 videos OR 20 clips (or a proportional mixture).
-                await dynamodb.send(
-                    new UpdateCommand({
-                        TableName: ACCESS_TABLE_NAME,
-                        Key: { email, product },
-                        UpdateExpression:
-                            'SET payment_status = :paid, stripe_session_id = :sessionId, purchased_at = :purchasedAt, updated_at = :updatedAt ADD credits_remaining :credits, processed_session_ids :sessionSet',
-                        ConditionExpression:
-                            'attribute_not_exists(processed_session_ids) OR NOT contains(processed_session_ids, :sessionId)',
-                        ExpressionAttributeValues: {
-                            ':paid': 'paid',
-                            ':sessionId': session.id,
-                            ':purchasedAt': nowIso,
-                            ':updatedAt': nowIso,
-                            ':credits': CAPCUT_TOTAL_UNITS,
-                            ':sessionSet': sessionSet
-                        }
-                    })
-                );
-            }
-
-            console.log('[STRIPE WEBHOOK] Paid access saved', {
-                email,
-                product,
-                sessionId: session.id
-            });
-
-            return res.status(200).json({
-                received: true,
-                accessGranted: true
-            });
-        } catch (err) {
-            // Stripe retries webhook deliveries. The same Checkout Session must
-            // never reset or add credits twice.
-            if (err.name === 'ConditionalCheckFailedException') {
-                console.log('[STRIPE WEBHOOK] Duplicate event ignored', {
-                    sessionId: session.id
-                });
-
-                return res.status(200).json({
-                    received: true,
-                    duplicate: true
-                });
-            }
-
-            console.error('[STRIPE WEBHOOK] Processing failed:', err);
-
-            return res.status(500).json({
-                error: 'Webhook processing failed'
-            });
-        }
-    }
+    createStripeWebhookHandler({
+        stripe,
+        dynamodb,
+        accessTableName: ACCESS_TABLE_NAME,
+        lecturaAccessMonths: LECTURA_ACCESS_MONTHS,
+        capcutTotalUnits: CAPCUT_TOTAL_UNITS
+    })
 );
 
 // All normal JSON APIs come AFTER the Stripe raw-body webhook.
@@ -906,6 +756,7 @@ module.exports = {
     getEntitlementRecord,
     putEntitlementRecord,
     setStripeClient,
+    setWebhookStripeClient,
     setCognitoJwks,
     setCognitoJwksFetcher,
     clearCognitoJwksCache,
