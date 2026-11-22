@@ -28,4 +28,28 @@ resource "aws_dynamodb_table" "xorwia_entitlements" {
     ManagedBy   = "terraform"
     Purpose     = "shared-entitlements"
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "xorwia_entitlements_dynamodb" {
+  name = "XorwiaEntitlementsDynamoDBPolicy"
+  role = "xorwia-nova-lambda-role"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = aws_dynamodb_table.xorwia_entitlements.arn
+      }
+    ]
+  })
 }
